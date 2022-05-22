@@ -1,0 +1,3 @@
+[submodule "nimportequoi"]
+	path = nimportequoi
+	url = git@github.com:JiadongWANG94/NimporteQuoi.git
