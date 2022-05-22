@@ -1,3 +1,5 @@
+#pragma once
+
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
@@ -8,6 +10,7 @@
 
 #include <string>
 #include <memory>
+#include <thread>
 #include <functional>
 #include <unordered_map>
 
@@ -50,4 +53,11 @@ class UBusRuntime {
 
     template <typename MethodT>
     bool call_method(const std::string &method, MethodT *data);
+
+ private:
+    int32_t control_sock_ = 0;
+    std::shared_ptr<std::thread> keep_alive_worker_;
+
+ private:
+    void keep_alive_sender();
 };
