@@ -111,6 +111,7 @@ void UBusRuntime::keep_alive_sender() {
                           sizeof(FrameHeader))) < 0) {
             LOG(UBusRuntime) << "Write returned " << ret << std::endl;
         }
+        LOG(UBusRuntime) << "Keep Alive message sent" << std::endl;
         sleep(3);
     }
 }

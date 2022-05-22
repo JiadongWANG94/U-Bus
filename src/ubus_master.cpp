@@ -50,6 +50,26 @@ void UBusMaster::process_control_message() {
     }
 
     while (1) {
+        while (!unprocessed_dead_participants_.empty()) {
+            auto &participant = unprocessed_dead_participants_.front();
+            unprocessed_dead_participants_.pop();
+            for (int i = 0; i < max_connections_; ++i) {
+                if (poll_fd_list[i].fd ==
+                    participant_list_.at(participant)->socket) {
+                    poll_fd_list[i].fd = -1;
+                    break;
+                }
+            }
+            auto ite = participant_list_.find(participant);
+            if (ite != participant_list_.end()) {
+                auto socket = ite->second->socket;
+                participant_list_.erase(ite);
+                auto ite2 = socket_participant_mapping_.find(socket);
+                if (ite2 != socket_participant_mapping_.end()) {
+                    socket_participant_mapping_.erase(ite2);
+                }
+            }
+        }
         while (!unprocessed_new_participants_.empty()) {
             auto &participant = unprocessed_new_participants_.front();
             unprocessed_new_participants_.pop();
@@ -59,6 +79,7 @@ void UBusMaster::process_control_message() {
                         participant_list_.at(participant)->socket;
                     poll_fd_list[i].events = POLLIN;
                     poll_fd_list[i].revents = 0;
+                    break;
                 }
             }
         }
@@ -261,9 +282,10 @@ void UBusMaster::accept_new_connection() {
 void UBusMaster::keep_alive_worker() {
     while (1) {
         for (auto &participant : participant_list_) {
-            if (++participant.second->watchdog_counter >= 10) {
+            if (++participant.second->watchdog_counter >= 6) {
                 LOG(UBusMaster)
                     << participant.second->name << " is dead" << std::endl;
+                unprocessed_dead_participants_.push(participant.first);
             }
         }
         sleep(1);
