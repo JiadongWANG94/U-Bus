@@ -31,13 +31,19 @@ target_link_libraries(ubus-master
         ubus
 )
 
-add_executable(test-ubus-runtime test/test_ubus_runtime.cpp)
+add_executable(test-ubus-publisher test/test_ubus_publisher.cpp)
 
-target_link_libraries(test-ubus-runtime
+target_link_libraries(test-ubus-publisher
     PUBLIC
         ubus
 )
 
+add_executable(test-ubus-subscriber test/test_ubus_subscriber.cpp)
+
+target_link_libraries(test-ubus-subscriber
+    PUBLIC
+        ubus
+)
 
 
 # add_subdirectory(test)

@@ -29,6 +29,8 @@ class UBusMaster {
         std::string ip;
         uint32_t port = 0;
         uint32_t socket = 0;
+        std::string listening_ip;
+        uint32_t listening_port = 0;
         std::unordered_map<std::string, uint32_t> published_topic_list;
         std::unordered_map<std::string, uint32_t> subscribed_topic_list;
         std::unordered_map<std::string, uint32_t> method_list;

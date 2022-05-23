@@ -87,14 +87,15 @@ void UBusMaster::process_control_message() {
         if (ret < 0) {
             LOG(UBusMaster) << "Error in poll" << std::endl;
         } else if (ret == 0) {
-            LOG(UBusMaster) << "Poll timeout" << std::endl;
+            // LOG(UBusMaster) << "Poll timeout" << std::endl;
         } else {
             for (int i = 0; i < max_connections_; ++i) {
                 if (poll_fd_list[i].revents & POLLIN) {
-                    LOG(UBusMaster) << "Socket " << poll_fd_list[i].fd
-                                    << " is readable" << std::endl;
-                    LOG(UBusMaster) << "Revents is " << poll_fd_list[i].revents
-                                    << std::endl;
+                    // LOG(UBusMaster) << "Socket " << poll_fd_list[i].fd
+                    //                 << " is readable" << std::endl;
+                    // LOG(UBusMaster) << "Revents is " <<
+                    // poll_fd_list[i].revents
+                    //                 << std::endl;
                     char header_buff[sizeof(FrameHeader)];
                     size_t read_size = read(poll_fd_list[i].fd, &header_buff,
                                             sizeof(FrameHeader));
@@ -102,38 +103,171 @@ void UBusMaster::process_control_message() {
                         LOG(UBusMaster)
                             << "Failed to read header, size of data read : "
                             << read_size << std::endl;
-                    } else {
-                        FrameHeader *header =
-                            reinterpret_cast<FrameHeader *>(header_buff);
-                        switch (header->message_type) {
-                            case FRAME_INITIATION:
-                                LOG(UBusMaster)
-                                    << "Invalid frame header" << std::endl;
-                                break;
-                            case FRAME_KEEP_ALIVE:
-                                LOG(UBusMaster)
-                                    << "Keep alive message" << std::endl;
-                                socket_participant_mapping_[poll_fd_list[i].fd]
-                                    ->watchdog_counter = 0;
-                                break;
-                            default:
-                                break;
-                        }
-                        if (header->data_length > 0) {
-                            LOG(UBusMaster) << "Size of data to read : "
-                                            << header->data_length << std::endl;
-                            char content_buff[header->data_length];
-                            read_size = readn(poll_fd_list[i].fd, &content_buff,
-                                              header->data_length);
-                            if (read_size < header->data_length) {
-                                LOG(UBusMaster)
-                                    << "Failed to read content" << std::endl;
-                            }
-                            std::string content(content_buff,
-                                                header->data_length);
+                    }
+                    std::string content;
+                    FrameHeader *header =
+                        reinterpret_cast<FrameHeader *>(header_buff);
+                    if (header->data_length > 0) {
+                        LOG(UBusMaster)
+                            << "Size of data to read : " << header->data_length
+                            << std::endl;
+                        char content_buff[header->data_length];
+                        read_size = readn(poll_fd_list[i].fd, &content_buff,
+                                          header->data_length);
+                        if (read_size < header->data_length) {
                             LOG(UBusMaster)
-                                << "Content : " << content << std::endl;
+                                << "Failed to read content" << std::endl;
                         }
+                        content =
+                            std::string(content_buff, header->data_length);
+                        LOG(UBusMaster) << "Content : " << content << std::endl;
+                    }
+
+                    switch (header->message_type) {
+                        case FRAME_INITIATION:
+                            LOG(UBusMaster)
+                                << "Invalid frame header" << std::endl;
+                            break;
+                        case FRAME_KEEP_ALIVE:
+                            // LOG(UBusMaster)
+                            //     << "Keep alive message" << std::endl;
+                            socket_participant_mapping_[poll_fd_list[i].fd]
+                                ->watchdog_counter = 0;
+                            break;
+                        case FRAME_PUBLISH:
+                            LOG(UBusMaster)
+                                << "New publish message" << std::endl;
+                            {
+                                std::string response;
+                                nlohmann::json content_json =
+                                    nlohmann::json::parse(content);
+                                if (!content_json.contains("topic") ||
+                                    !content_json.contains("type_id")) {
+                                    LOG(UBusMaster)
+                                        << "Invalid frame" << std::endl;
+                                    response = "INVALID";
+                                } else if (event_list_.find(content_json.at(
+                                               "topic")) != event_list_.end()) {
+                                    response = "DUPLICATE";
+                                } else {
+                                    EventInfo event_info;
+                                    event_info.name = content_json.at("topic");
+                                    event_info.type =
+                                        content_json.at("type_id");
+                                    event_info.publisher =
+                                        socket_participant_mapping_
+                                            [poll_fd_list[i].fd];
+                                    event_list_[content_json.at("topic")] =
+                                        event_info;
+                                    response = "OK";
+                                }
+                                Frame frame;
+                                nlohmann::json response_json;
+                                response_json["response"] = response;
+                                std::string serilized_string =
+                                    response_json.dump();
+                                const char *char_struct =
+                                    serilized_string.c_str();
+                                frame.header.data_length =
+                                    serilized_string.size();
+                                frame.data =
+                                    new uint8_t[frame.header.data_length];
+                                strncpy(reinterpret_cast<char *>(frame.data),
+                                        char_struct, serilized_string.size());
+                                int32_t ret;
+                                if ((ret = writen(
+                                         poll_fd_list[i].fd,
+                                         static_cast<void *>(&frame.header),
+                                         sizeof(FrameHeader))) < 0) {
+                                    LOG(UBusMaster) << "Write returned " << ret
+                                                    << std::endl;
+                                }
+                                if ((ret = writen(
+                                         poll_fd_list[i].fd,
+                                         static_cast<void *>(frame.data),
+                                         frame.header.data_length)) < 0) {
+                                    LOG(UBusRuntime) << "Write returned " << ret
+                                                     << std::endl;
+                                }
+                            }
+                            break;
+                        case FRAME_SUBSCRIBE:
+                            LOG(UBusMaster)
+                                << "New subscribe message" << std::endl;
+                            {
+                                std::string response;
+                                std::string publisher_ip;
+                                int32_t publisher_port;
+                                std::string publisher_name;
+                                nlohmann::json content_json =
+                                    nlohmann::json::parse(content);
+                                if (!content_json.contains("topic") ||
+                                    !content_json.contains("type_id")) {
+                                    LOG(UBusMaster)
+                                        << "Invalid frame" << std::endl;
+                                    response = "INVALID";
+                                } else {
+                                    auto event_info = event_list_.find(
+                                        content_json.at("topic"));
+                                    if (event_info == event_list_.end()) {
+                                        response = "NOT_PUBLISHED";
+                                    } else {
+                                        publisher_ip =
+                                            event_info->second.publisher
+                                                ->listening_ip;
+                                        publisher_port =
+                                            event_info->second.publisher
+                                                ->listening_port;
+                                        publisher_name =
+                                            event_info->second.publisher->name;
+                                        response = "OK";
+                                    }
+                                }
+                                Frame frame;
+                                nlohmann::json response_json;
+                                response_json["response"] = response;
+                                if (response == "OK") {
+                                    response_json["publisher_ip"] =
+                                        publisher_ip;
+                                    response_json["publisher_port"] =
+                                        publisher_port;
+                                    response_json["publisher_name"] =
+                                        publisher_name;
+                                }
+
+                                // LOG(DEBUG) << "test :" << std::endl <<
+                                // response << std::endl << publisher_name <<
+                                // std::endl << publisher_ip << std::endl <<
+                                // publisher_port << std::endl;
+                                std::string serilized_string =
+                                    response_json.dump();
+                                const char *char_struct =
+                                    serilized_string.c_str();
+                                frame.header.data_length =
+                                    serilized_string.size();
+                                frame.data =
+                                    new uint8_t[frame.header.data_length];
+                                strncpy(reinterpret_cast<char *>(frame.data),
+                                        char_struct, serilized_string.size());
+                                int32_t ret;
+                                if ((ret = writen(
+                                         poll_fd_list[i].fd,
+                                         static_cast<void *>(&frame.header),
+                                         sizeof(FrameHeader))) < 0) {
+                                    LOG(UBusMaster) << "Write returned " << ret
+                                                    << std::endl;
+                                }
+                                if ((ret = writen(
+                                         poll_fd_list[i].fd,
+                                         static_cast<void *>(frame.data),
+                                         frame.header.data_length)) < 0) {
+                                    LOG(UBusRuntime) << "Write returned " << ret
+                                                     << std::endl;
+                                }
+                            }
+                            break;
+                        default:
+                            break;
                     }
                 }
             }
@@ -195,7 +329,9 @@ void UBusMaster::accept_new_connection() {
             LOG(UBusMaster) << "Content : " << content << std::endl;
             try {
                 nlohmann::json json_struct = nlohmann::json::parse(content);
-                if (json_struct.contains("name")) {
+                if (json_struct.contains("name") &&
+                    json_struct.contains("listening_ip") &&
+                    json_struct.contains("listening_port")) {
                     if (participant_list_.find(json_struct["name"]) ==
                         participant_list_.end()) {
                         std::shared_ptr<UBusParticipantInfo> participant_info =
@@ -204,6 +340,10 @@ void UBusMaster::accept_new_connection() {
                         participant_info->ip =
                             std::string(inet_ntoa(incoming_addr.sin_addr));
                         participant_info->port = ntohs(incoming_addr.sin_port);
+                        participant_info->listening_ip =
+                            json_struct["listening_ip"];
+                        participant_info->listening_port =
+                            json_struct["listening_port"].get<uint32_t>();
                         participant_info->socket = fd;
                         participant_list_[participant_info->name] =
                             participant_info;
