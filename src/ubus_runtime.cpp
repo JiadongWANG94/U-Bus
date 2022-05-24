@@ -1,7 +1,7 @@
 #include "ubus_runtime.hpp"
 
 #include <unistd.h>
-
+#include <poll.h>
 #include "nlohmann/json.hpp"
 
 #include "helpers.hpp"
@@ -142,6 +142,10 @@ bool UBusRuntime::init(const std::string &name,
     keep_alive_worker_ =
         std::make_shared<std::thread>(&UBusRuntime::keep_alive_sender, this);
     keep_alive_worker_->detach();
+
+    event_worker_ = std::make_shared<std::thread>(
+        &UBusRuntime::process_event_message, this);
+    event_worker_->detach();
     return true;
 }
 
@@ -189,6 +193,7 @@ void UBusRuntime::start_listening_socket() {
                 LOG(UBusMaster) << "Failed to read content" << std::endl;
             }
             std::string content(content_buff, header->data_length);
+            std::string response;
             try {
                 nlohmann::json response_json = nlohmann::json::parse(content);
                 if (response_json.contains("topic") &&
@@ -197,14 +202,168 @@ void UBusRuntime::start_listening_socket() {
                     // TODO: process subscription
                     LOG(UBusRuntime) << "New subscriber arrived "
                                      << response_json.at("name") << std::endl;
+                    auto pub_event_info =
+                        pub_list_.find(response_json.at("topic"));
+                    if (pub_event_info == pub_list_.end()) {
+                        LOG(UBusRuntime) << "Error wrong topic" << std::endl;
+                        response = "INVALID";
+                    } else if (pub_event_info->second.type !=
+                               response_json.at("type_id").get<uint32_t>()) {
+                        LOG(UBusRuntime) << "Error wrong type id" << std::endl;
+                        response = "INVALID";
+                    } else if (pub_event_info->second.client_socket_map.find(
+                                   response_json.at("name")) !=
+                               pub_event_info->second.client_socket_map.end()) {
+                        LOG(UBusRuntime) << "Error duplicate" << std::endl;
+                        response = "DUPLICATE";
+                    } else {
+                        LOG(UBusRuntime)
+                            << "Registered new subscriber "
+                            << response_json.at("name") << std::endl;
+                        pub_event_info->second
+                            .client_socket_map[response_json.at("name")] = fd;
+                        response = "OK";
+                    }
+
                 } else {
                     LOG(UBusRuntime)
                         << "Invalid subscription request" << std::endl;
+                    response = "INVALID";
                 }
             } catch (nlohmann::json::exception &e) {
                 LOG(UBusRuntime)
                     << "Exception in json : " << e.what() << std::endl;
+                response = "INVALID";
+            }
+            {
+                Frame frame;
+                frame.header.message_type = FRAME_SUBSCRIBE;
+
+                nlohmann::json json_struct;
+                json_struct["response"] = response;
+                std::string serilized_string = json_struct.dump();
+
+                const char *char_struct = serilized_string.c_str();
+                frame.header.data_length = serilized_string.size();
+                frame.data = new uint8_t[frame.header.data_length];
+                strncpy(reinterpret_cast<char *>(frame.data), char_struct,
+                        serilized_string.size());
+                int32_t ret;
+                if ((ret = writen(fd, static_cast<void *>(&frame.header),
+                                  sizeof(FrameHeader))) < 0) {
+                    LOG(UBusRuntime) << "Write returned " << ret << std::endl;
+                }
+                if ((ret = writen(fd, static_cast<void *>(frame.data),
+                                  frame.header.data_length)) < 0) {
+                    LOG(UBusRuntime) << "Write returned " << ret << std::endl;
+                }
             }
         }
+    }
+}
+
+void UBusRuntime::process_event_message() {
+    pollfd poll_fd_list[max_connections_];
+    for (int i = 0; i < max_connections_; ++i) {
+        poll_fd_list[i].fd = -1;
+    }
+
+    while (1) {
+        while (!unprocessed_dead_sub_events_.empty()) {
+            auto &sub_event = unprocessed_dead_sub_events_.front();
+            unprocessed_dead_sub_events_.pop();
+            for (int i = 0; i < max_connections_; ++i) {
+                if (poll_fd_list[i].fd == sub_list_.at(sub_event).socket) {
+                    poll_fd_list[i].fd = -1;
+                    break;
+                }
+            }
+            auto ite = sub_list_.find(sub_event);
+            if (ite != sub_list_.end()) {
+                auto socket = ite->second.socket;
+                sub_list_.erase(ite);
+            }
+        }
+        while (!unprocessed_new_sub_events_.empty()) {
+            auto &sub_event = unprocessed_new_sub_events_.front();
+            unprocessed_new_sub_events_.pop();
+            for (int i = 0; i < max_connections_; ++i) {
+                if (poll_fd_list[i].fd == -1) {
+                    poll_fd_list[i].fd = sub_list_.at(sub_event).socket;
+                    poll_fd_list[i].events = POLLIN;
+                    poll_fd_list[i].revents = 0;
+                    break;
+                }
+            }
+        }
+        int ret = poll(poll_fd_list, sub_list_.size(), 1000);
+        if (ret < 0) {
+            LOG(UBusRuntime) << "Error in poll" << std::endl;
+        } else if (ret == 0) {
+            // LOG(UBusRuntime) << "Poll timeout" << std::endl;
+        } else {
+            for (int i = 0; i < max_connections_; ++i) {
+                if (poll_fd_list[i].revents & POLLIN) {
+                    // LOG(UBusRuntime) << "Socket " << poll_fd_list[i].fd
+                    //                 << " is readable" << std::endl;
+                    // LOG(UBusRuntime) << "Revents is " <<
+                    // poll_fd_list[i].revents
+                    //                 << std::endl;
+                    char header_buff[sizeof(FrameHeader)];
+                    size_t read_size = read(poll_fd_list[i].fd, &header_buff,
+                                            sizeof(FrameHeader));
+                    if (read_size < sizeof(FrameHeader)) {
+                        LOG(UBusRuntime)
+                            << "Failed to read header, size of data read : "
+                            << read_size << std::endl;
+                    }
+                    std::string content;
+                    FrameHeader *header =
+                        reinterpret_cast<FrameHeader *>(header_buff);
+                    if (header->data_length > 0) {
+                        LOG(UBusRuntime)
+                            << "Size of data to read : " << header->data_length
+                            << std::endl;
+                        char content_buff[header->data_length];
+                        read_size = readn(poll_fd_list[i].fd, &content_buff,
+                                          header->data_length);
+                        if (read_size < header->data_length) {
+                            LOG(UBusRuntime)
+                                << "Failed to read content" << std::endl;
+                        }
+                        content =
+                            std::string(content_buff, header->data_length);
+                        LOG(UBusRuntime)
+                            << "Content : " << content << std::endl;
+                    }
+
+                    switch (header->message_type) {
+                        case FRAME_EVENT:
+                            LOG(UBusRuntime)
+                                << "New event message" << std::endl;
+                            {
+                                // find the corresponding sub_event_info
+                                for (auto &sub_event_info : sub_list_) {
+                                    if (sub_event_info.second.socket ==
+                                        poll_fd_list[i].fd) {
+                                        LOG(UBusRuntime)
+                                            << "Topic is "
+                                            << sub_event_info.second.topic;
+                                        (*sub_event_info.second.callback)(
+                                            content);
+                                        break;
+                                    }
+                                }
+                            }
+                            break;
+                        default:
+                            LOG(UBusRuntime)
+                                << "Invalid frame header" << std::endl;
+                            break;
+                    }
+                }
+            }
+        }
+        usleep(100000);
     }
 }

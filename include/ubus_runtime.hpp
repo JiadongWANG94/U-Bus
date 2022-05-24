@@ -14,6 +14,7 @@
 #include <string>
 #include <memory>
 #include <thread>
+#include <queue>
 #include <functional>
 #include <unordered_map>
 
@@ -51,6 +52,7 @@ class UBusRuntime {
     int32_t control_sock_ = 0;
     int32_t listening_sock_ = 0;
     std::shared_ptr<std::thread> listening_worker_;
+    std::shared_ptr<std::thread> event_worker_;
     std::shared_ptr<std::thread> keep_alive_worker_;
     struct PubEventInfo {
         std::string topic;
@@ -88,12 +90,17 @@ class UBusRuntime {
         std::string publisher;
     };
     std::unordered_map<std::string, SubEventInfo> sub_list_;
+    std::queue<std::string> unprocessed_new_sub_events_;
+    std::queue<std::string> unprocessed_dead_sub_events_;
+
+    const uint32_t max_connections_ = 1024;
 
     std::string name_;
 
  private:
     void keep_alive_sender();
     void start_listening_socket();
+    void process_event_message();
 };
 
 template <typename EventT>
@@ -358,7 +365,9 @@ bool UBusRuntime::subscribe_event(
                                             LOG(UBusRuntime)
                                                 << "Registered with publisher"
                                                 << std::endl;
-                                            sub_list_["topic"] = event_info;
+                                            sub_list_[topic] = event_info;
+                                            unprocessed_new_sub_events_.push(
+                                                topic);
                                             return true;
                                         } else {
                                             LOG(UBusRuntime)

@@ -272,7 +272,7 @@ void UBusMaster::process_control_message() {
                 }
             }
         }
-        usleep(200000);
+        usleep(100000);
     }
 
     // int32_t epollfd = epoll_create1(0);

@@ -6,7 +6,7 @@
 
 int main() {
     UBusRuntime runtime;
-    runtime.init("test_participant_sub", "127.0.0.1", 5100);
+    runtime.init("test_participant_sub", "127.0.0.1", 5101);
     runtime.subscribe_event("test_topic",
                             std::function<void(const TestEvent1 &)>(
                                 [](const TestEvent1 &event) -> void {
