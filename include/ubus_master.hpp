@@ -12,6 +12,8 @@
 #include <memory>
 #include <queue>
 #include <functional>
+#include <mutex>
+#include <shared_mutex>
 #include <unordered_map>
 
 #include "nlohmann/json.hpp"
@@ -51,10 +53,18 @@ class UBusMaster {
         participant_list_;
     std::unordered_map<uint32_t, std::shared_ptr<UBusParticipantInfo> >
         socket_participant_mapping_;
+    std::shared_mutex participant_list_mtx_;
+
     std::queue<std::string> unprocessed_new_participants_;
+    std::mutex unprocessed_new_participants_mtx_;
     std::queue<std::string> unprocessed_dead_participants_;
+    std::mutex unprocessed_dead_participants_mtx_;
+
     std::unordered_map<std::string, EventInfo> event_list_;
+    std::mutex event_list__mtx_;
+
     std::unordered_map<std::string, MethodInfo> method_list_;
+    std::mutex method_list_mtx_;
 
     int32_t control_sock_ = 0;
 

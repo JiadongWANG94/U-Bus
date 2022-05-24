@@ -161,10 +161,9 @@ void UBusRuntime::keep_alive_sender() {
         int32_t ret;
         if ((ret = writen(control_sock_, static_cast<void *>(&frame.header),
                           sizeof(FrameHeader))) < 0) {
-            LDEBUG(UBusRuntime) << "Write returned " << ret << std::endl;
+            LWARN(UBusRuntime) << "Write returned " << ret << std::endl;
         }
-        // LDEBUG(UBusRuntime) << "Keep Alive message sent" << std::endl;
-        sleep(3);
+        sleep(1);
     }
 }
 
@@ -203,7 +202,6 @@ void UBusRuntime::start_listening_socket() {
                 if (response_json.contains("topic") &&
                     response_json.contains("type_id") &&
                     response_json.contains("name")) {
-                    // TODO: process subscription
                     LDEBUG(UBusRuntime)
                         << "New subscriber arrived " << response_json.at("name")
                         << std::endl;
@@ -308,19 +306,23 @@ void UBusRuntime::process_event_message() {
         if (ret < 0) {
             LDEBUG(UBusRuntime) << "Error in poll" << std::endl;
         } else if (ret == 0) {
-            // LDEBUG(UBusRuntime) << "Poll timeout" << std::endl;
+            LDEBUG(UBusRuntime) << "Poll timeout" << std::endl;
         } else {
             for (int i = 0; i < max_connections_; ++i) {
                 if (poll_fd_list[i].revents & POLLIN) {
-                    // LDEBUG(UBusRuntime) << "Socket " << poll_fd_list[i].fd
-                    //                 << " is readable" << std::endl;
-                    // LDEBUG(UBusRuntime) << "Revents is " <<
-                    // poll_fd_list[i].revents
-                    //                 << std::endl;
+                    LDEBUG(UBusRuntime) << "Socket " << poll_fd_list[i].fd
+                                        << " is readable" << std::endl;
+                    LDEBUG(UBusRuntime) << "Revents is "
+                                        << poll_fd_list[i].revents << std::endl;
                     char header_buff[sizeof(FrameHeader)];
                     size_t read_size = read(poll_fd_list[i].fd, &header_buff,
                                             sizeof(FrameHeader));
-                    if (read_size < sizeof(FrameHeader)) {
+                    if (read_size == 0) {
+                        LWARN(UBusRuntime)
+                            << "Peer is closed, remove from poll." << std::endl;
+                        poll_fd_list[i].fd = -1;
+                        continue;
+                    } else if (read_size < sizeof(FrameHeader)) {
                         LDEBUG(UBusRuntime)
                             << "Failed to read header, size of data read : "
                             << read_size << std::endl;

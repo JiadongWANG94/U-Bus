@@ -20,11 +20,14 @@ class TestEvent1 : public EventType {
 
  public:
     virtual void serilize(std::string *data) const override {
-        *data = "Event1 Body";
+        *data = this->data;
     }
     virtual void unserilize(const std::string &data) override {
         LDEBUG(TestEvent1) << "got data " << data << std::endl;
+        this->data = data;
     }
+
+    std::string data;
 };
 
 class TestEvent2 : public EventType {

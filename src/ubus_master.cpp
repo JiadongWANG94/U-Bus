@@ -7,6 +7,7 @@
 
 #include "helpers.hpp"
 #include "frame.hpp"
+#include "shared_lock_guard.hpp"
 
 bool UBusMaster::init(const std::string &ip, uint32_t port) {
     if ((control_sock_ = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -51,59 +52,79 @@ void UBusMaster::process_control_message() {
     }
 
     while (1) {
-        while (!unprocessed_dead_participants_.empty()) {
-            auto &participant = unprocessed_dead_participants_.front();
-            unprocessed_dead_participants_.pop();
-            for (int i = 0; i < max_connections_; ++i) {
-                if (poll_fd_list[i].fd ==
-                    participant_list_.at(participant)->socket) {
-                    poll_fd_list[i].fd = -1;
-                    break;
+        {
+            std::lock_guard<std::mutex> lock(
+                unprocessed_dead_participants_mtx_);
+            while (!unprocessed_dead_participants_.empty()) {
+                WritingSharedLockGuard shared_lock(participant_list_mtx_);
+                auto &participant = unprocessed_dead_participants_.front();
+                unprocessed_dead_participants_.pop();
+                for (int i = 0; i < max_connections_; ++i) {
+                    if (poll_fd_list[i].fd ==
+                        participant_list_.at(participant)->socket) {
+                        poll_fd_list[i].fd = -1;
+                        break;
+                    }
                 }
-            }
-            auto ite = participant_list_.find(participant);
-            if (ite != participant_list_.end()) {
-                auto socket = ite->second->socket;
-                participant_list_.erase(ite);
-                auto ite2 = socket_participant_mapping_.find(socket);
-                if (ite2 != socket_participant_mapping_.end()) {
-                    socket_participant_mapping_.erase(ite2);
-                }
-            }
-        }
-        while (!unprocessed_new_participants_.empty()) {
-            auto &participant = unprocessed_new_participants_.front();
-            unprocessed_new_participants_.pop();
-            for (int i = 0; i < max_connections_; ++i) {
-                if (poll_fd_list[i].fd == -1) {
-                    poll_fd_list[i].fd =
-                        participant_list_.at(participant)->socket;
-                    poll_fd_list[i].events = POLLIN;
-                    poll_fd_list[i].revents = 0;
-                    break;
+                auto ite = participant_list_.find(participant);
+                if (ite != participant_list_.end()) {
+                    for (auto &event : ite->second->published_topic_list) {
+                        event_list_.erase(event.first);
+                    }
+
+                    auto socket = ite->second->socket;
+                    participant_list_.erase(ite);
+                    auto ite2 = socket_participant_mapping_.find(socket);
+                    if (ite2 != socket_participant_mapping_.end()) {
+                        socket_participant_mapping_.erase(ite2);
+                    }
                 }
             }
         }
+
+        {
+            std::lock_guard<std::mutex> lock(unprocessed_new_participants_mtx_);
+            while (!unprocessed_new_participants_.empty()) {
+                WritingSharedLockGuard shared_lock(participant_list_mtx_);
+                auto &participant = unprocessed_new_participants_.front();
+                unprocessed_new_participants_.pop();
+                for (int i = 0; i < max_connections_; ++i) {
+                    if (poll_fd_list[i].fd == -1) {
+                        poll_fd_list[i].fd =
+                            participant_list_.at(participant)->socket;
+                        poll_fd_list[i].events = POLLIN;
+                        poll_fd_list[i].revents = 0;
+                        break;
+                    }
+                }
+            }
+        }
+
         int ret = poll(poll_fd_list, participant_list_.size(), 1000);
         if (ret < 0) {
             LERROR(UBusMaster) << "Error in poll" << std::endl;
         } else if (ret == 0) {
-            // LDEBUG(UBusMaster) << "Poll timeout" << std::endl;
+            LDEBUG(UBusMaster) << "Poll timeout" << std::endl;
         } else {
             for (int i = 0; i < max_connections_; ++i) {
                 if (poll_fd_list[i].revents & POLLIN) {
-                    // LDEBUG(UBusMaster) << "Socket " << poll_fd_list[i].fd
-                    //                 << " is readable" << std::endl;
-                    // LDEBUG(UBusMaster) << "Revents is " <<
-                    // poll_fd_list[i].revents
-                    //                 << std::endl;
+                    LDEBUG(UBusMaster) << "Socket " << poll_fd_list[i].fd
+                                       << " is readable" << std::endl;
+                    LDEBUG(UBusMaster) << "Revents is "
+                                       << poll_fd_list[i].revents << std::endl;
                     char header_buff[sizeof(FrameHeader)];
                     size_t read_size = read(poll_fd_list[i].fd, &header_buff,
                                             sizeof(FrameHeader));
-                    if (read_size < sizeof(FrameHeader)) {
+                    if (read_size == 0) {
+                        LWARN(UBusMaster)
+                            << "Peer is closed, remove from poll." << std::endl;
+                        poll_fd_list[i].fd = -1;
+                        continue;
+                    } else if (read_size < sizeof(FrameHeader)) {
                         LERROR(UBusMaster)
                             << "Failed to read header, size of data read : "
                             << read_size << std::endl;
+                        continue;
                     }
                     std::string content;
                     FrameHeader *header =
@@ -121,7 +142,7 @@ void UBusMaster::process_control_message() {
                         }
                         content =
                             std::string(content_buff, header->data_length);
-                        LDEBUG(UBusMaster)
+                        LINFO(UBusMaster)
                             << "Content : " << content << std::endl;
                     }
 
@@ -161,6 +182,8 @@ void UBusMaster::process_control_message() {
                                             [poll_fd_list[i].fd];
                                     event_list_[content_json.at("topic")] =
                                         event_info;
+                                    event_info.publisher->published_topic_list
+                                        [event_info.name] = event_info.type;
                                     response = "OK";
                                 }
                                 Frame frame;
@@ -312,6 +335,9 @@ void UBusMaster::accept_new_connection() {
                 if (json_struct.contains("name") &&
                     json_struct.contains("listening_ip") &&
                     json_struct.contains("listening_port")) {
+                    std::lock_guard<std::mutex> lock(
+                        unprocessed_new_participants_mtx_);
+                    WritingSharedLockGuard lock_shared(participant_list_mtx_);
                     if (participant_list_.find(json_struct["name"]) ==
                         participant_list_.end()) {
                         std::shared_ptr<UBusParticipantInfo> participant_info =
@@ -403,7 +429,9 @@ void UBusMaster::accept_new_connection() {
 void UBusMaster::keep_alive_worker() {
     while (1) {
         for (auto &participant : participant_list_) {
-            if (++participant.second->watchdog_counter >= 6) {
+            if (++participant.second->watchdog_counter >= 3) {
+                std::lock_guard<std::mutex> lock(
+                    unprocessed_dead_participants_mtx_);
                 LINFO(UBusMaster)
                     << participant.second->name << " is dead" << std::endl;
                 unprocessed_dead_participants_.push(participant.first);
