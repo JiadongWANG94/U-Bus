@@ -14,7 +14,7 @@ bool UBusRuntime::init(const std::string &name,
 
     // init listening_sock
     if ((listening_sock_ = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        LOG(UBusMaster) << "Failed to create socket" << std::endl;
+        LDEBUG(UBusMaster) << "Failed to create socket" << std::endl;
         listening_sock_ = 0;
         return false;
     }
@@ -25,13 +25,14 @@ bool UBusRuntime::init(const std::string &name,
     listening_addr.sin_port = htons(0);
     if (inet_pton(AF_INET, std::string("127.0.0.1").c_str(),
                   &listening_addr.sin_addr) <= 0) {
-        LOG(UBusMaster) << "Failed to convert ip address " << ip << std::endl;
+        LDEBUG(UBusMaster) << "Failed to convert ip address " << ip
+                           << std::endl;
         return false;
     }
     if (bind(listening_sock_, reinterpret_cast<sockaddr *>(&listening_addr),
              sizeof(listening_addr)) < 0) {
-        LOG(UBusMaster) << "Failed to convert bind to ip " << ip << " port "
-                        << port << std::endl;
+        LDEBUG(UBusMaster) << "Failed to convert bind to ip " << ip << " port "
+                           << port << std::endl;
         return false;
     }
     uint32_t read_size;
@@ -40,7 +41,7 @@ bool UBusRuntime::init(const std::string &name,
     read_size = sizeof(socket_addr);
     if (getsockname(listening_sock_, reinterpret_cast<sockaddr *>(&socket_addr),
                     &read_size) < 0) {
-        LOG(UBusRuntime) << "Failed to getsockname" << std::endl;
+        LDEBUG(UBusRuntime) << "Failed to getsockname" << std::endl;
         return false;
     }
 
@@ -49,7 +50,7 @@ bool UBusRuntime::init(const std::string &name,
 
     // init control_sock
     if ((control_sock_ = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        LOG(UBusRuntime) << "Failed to create socket" << std::endl;
+        LDEBUG(UBusRuntime) << "Failed to create socket" << std::endl;
         control_sock_ = 0;
         return false;
     }
@@ -58,13 +59,14 @@ bool UBusRuntime::init(const std::string &name,
     control_addr.sin_family = AF_INET;
     control_addr.sin_port = htons(port);
     if (inet_pton(AF_INET, ip.c_str(), &control_addr.sin_addr) <= 0) {
-        LOG(UBusRuntime) << "Failed to convert ip address " << ip << std::endl;
+        LDEBUG(UBusRuntime)
+            << "Failed to convert ip address " << ip << std::endl;
         return false;
     }
 
     if (connect(control_sock_, reinterpret_cast<sockaddr *>(&control_addr),
                 sizeof(control_addr)) != 0) {
-        LOG(UBusRuntime) << "Failed to connect to master" << std::endl;
+        LDEBUG(UBusRuntime) << "Failed to connect to master" << std::endl;
         return false;
     }
 
@@ -77,59 +79,61 @@ bool UBusRuntime::init(const std::string &name,
     std::string serilized_string = json_struct.dump();
     const char *char_struct = serilized_string.c_str();
     frame.header.data_length = serilized_string.size();
-    LOG(UBusRuntime) << "Data length : " << frame.header.data_length
-                     << std::endl;
+    LDEBUG(UBusRuntime) << "Data length : " << frame.header.data_length
+                        << std::endl;
     frame.data = new uint8_t[frame.header.data_length];
     strncpy(reinterpret_cast<char *>(frame.data), char_struct,
             serilized_string.size());
     int32_t ret;
     if ((ret = writen(control_sock_, static_cast<void *>(&frame.header),
                       sizeof(FrameHeader))) < 0) {
-        LOG(UBusRuntime) << "Write returned " << ret << std::endl;
+        LDEBUG(UBusRuntime) << "Write returned " << ret << std::endl;
     }
     if ((ret = writen(control_sock_, static_cast<void *>(frame.data),
                       frame.header.data_length)) < 0) {
-        LOG(UBusRuntime) << "Write returned " << ret << std::endl;
+        LDEBUG(UBusRuntime) << "Write returned " << ret << std::endl;
     }
-    LOG(UBusRuntime) << "Debug content "
-                     << std::string(reinterpret_cast<char *>(frame.data),
-                                    frame.header.data_length)
-                     << std::endl;
+    LDEBUG(UBusRuntime) << "Debug content "
+                        << std::string(reinterpret_cast<char *>(frame.data),
+                                       frame.header.data_length)
+                        << std::endl;
 
     {
         char header_buff[sizeof(FrameHeader)];
         size_t read_size =
             readn(control_sock_, &header_buff, sizeof(FrameHeader));
         if (read_size < sizeof(FrameHeader)) {
-            LOG(UBusRuntime) << "Failed to read header" << std::endl;
+            LDEBUG(UBusRuntime) << "Failed to read header" << std::endl;
         } else {
             FrameHeader *header = reinterpret_cast<FrameHeader *>(header_buff);
-            LOG(UBusRuntime) << "Size of data to read : " << header->data_length
-                             << std::endl;
+            LDEBUG(UBusRuntime)
+                << "Size of data to read : " << header->data_length
+                << std::endl;
             char content_buff[header->data_length];
             read_size =
                 readn(control_sock_, &content_buff, header->data_length);
             if (read_size < header->data_length) {
-                LOG(UBusRuntime) << "Failed to read content" << std::endl;
+                LDEBUG(UBusRuntime) << "Failed to read content" << std::endl;
             }
             std::string content(content_buff, header->data_length);
             try {
                 nlohmann::json response_json = nlohmann::json::parse(content);
                 if (response_json.contains("response")) {
                     if (response_json["response"] == "OK") {
-                        LOG(UBusRuntime) << "Registered to master" << std::endl;
+                        LDEBUG(UBusRuntime)
+                            << "Registered to master" << std::endl;
                     } else {
-                        LOG(UBusRuntime)
+                        LDEBUG(UBusRuntime)
                             << "Error from master : "
                             << response_json["response"] << std::endl;
                         return false;
                     }
                 } else {
-                    LOG(UBusRuntime)
+                    LDEBUG(UBusRuntime)
                         << "Invalid response from master" << std::endl;
                 }
             } catch (nlohmann::json::exception &e) {
-                LOG(UBusRuntime)
+                LDEBUG(UBusRuntime)
                     << "Exception in json : " << e.what() << std::endl;
             }
         }
@@ -157,16 +161,16 @@ void UBusRuntime::keep_alive_sender() {
         int32_t ret;
         if ((ret = writen(control_sock_, static_cast<void *>(&frame.header),
                           sizeof(FrameHeader))) < 0) {
-            LOG(UBusRuntime) << "Write returned " << ret << std::endl;
+            LDEBUG(UBusRuntime) << "Write returned " << ret << std::endl;
         }
-        // LOG(UBusRuntime) << "Keep Alive message sent" << std::endl;
+        // LDEBUG(UBusRuntime) << "Keep Alive message sent" << std::endl;
         sleep(3);
     }
 }
 
 void UBusRuntime::start_listening_socket() {
     if (listen(listening_sock_, 4096) < 0) {
-        LOG(UBusMaster) << "Failed to start listening" << std::endl;
+        LDEBUG(UBusMaster) << "Failed to start listening" << std::endl;
         return;
     }
 
@@ -180,17 +184,17 @@ void UBusRuntime::start_listening_socket() {
         char header_buff[sizeof(FrameHeader)];
         size_t read_size = readn(fd, &header_buff, sizeof(FrameHeader));
         if (read_size < sizeof(FrameHeader)) {
-            LOG(UBusMaster) << "Failed to read header" << std::endl;
+            LDEBUG(UBusMaster) << "Failed to read header" << std::endl;
         } else {
             FrameHeader *header = reinterpret_cast<FrameHeader *>(header_buff);
             if (header->message_type != FRAME_SUBSCRIBE) {
-                LOG(UBusMaster) << "Invalid frame header" << std::endl;
+                LDEBUG(UBusMaster) << "Invalid frame header" << std::endl;
                 continue;
             }
             char content_buff[header->data_length];
             read_size = readn(fd, &content_buff, header->data_length);
             if (read_size < header->data_length) {
-                LOG(UBusMaster) << "Failed to read content" << std::endl;
+                LDEBUG(UBusMaster) << "Failed to read content" << std::endl;
             }
             std::string content(content_buff, header->data_length);
             std::string response;
@@ -200,24 +204,26 @@ void UBusRuntime::start_listening_socket() {
                     response_json.contains("type_id") &&
                     response_json.contains("name")) {
                     // TODO: process subscription
-                    LOG(UBusRuntime) << "New subscriber arrived "
-                                     << response_json.at("name") << std::endl;
+                    LDEBUG(UBusRuntime)
+                        << "New subscriber arrived " << response_json.at("name")
+                        << std::endl;
                     auto pub_event_info =
                         pub_list_.find(response_json.at("topic"));
                     if (pub_event_info == pub_list_.end()) {
-                        LOG(UBusRuntime) << "Error wrong topic" << std::endl;
+                        LDEBUG(UBusRuntime) << "Error wrong topic" << std::endl;
                         response = "INVALID";
                     } else if (pub_event_info->second.type !=
                                response_json.at("type_id").get<uint32_t>()) {
-                        LOG(UBusRuntime) << "Error wrong type id" << std::endl;
+                        LDEBUG(UBusRuntime)
+                            << "Error wrong type id" << std::endl;
                         response = "INVALID";
                     } else if (pub_event_info->second.client_socket_map.find(
                                    response_json.at("name")) !=
                                pub_event_info->second.client_socket_map.end()) {
-                        LOG(UBusRuntime) << "Error duplicate" << std::endl;
+                        LDEBUG(UBusRuntime) << "Error duplicate" << std::endl;
                         response = "DUPLICATE";
                     } else {
-                        LOG(UBusRuntime)
+                        LDEBUG(UBusRuntime)
                             << "Registered new subscriber "
                             << response_json.at("name") << std::endl;
                         pub_event_info->second
@@ -226,12 +232,12 @@ void UBusRuntime::start_listening_socket() {
                     }
 
                 } else {
-                    LOG(UBusRuntime)
+                    LDEBUG(UBusRuntime)
                         << "Invalid subscription request" << std::endl;
                     response = "INVALID";
                 }
             } catch (nlohmann::json::exception &e) {
-                LOG(UBusRuntime)
+                LDEBUG(UBusRuntime)
                     << "Exception in json : " << e.what() << std::endl;
                 response = "INVALID";
             }
@@ -251,11 +257,13 @@ void UBusRuntime::start_listening_socket() {
                 int32_t ret;
                 if ((ret = writen(fd, static_cast<void *>(&frame.header),
                                   sizeof(FrameHeader))) < 0) {
-                    LOG(UBusRuntime) << "Write returned " << ret << std::endl;
+                    LDEBUG(UBusRuntime)
+                        << "Write returned " << ret << std::endl;
                 }
                 if ((ret = writen(fd, static_cast<void *>(frame.data),
                                   frame.header.data_length)) < 0) {
-                    LOG(UBusRuntime) << "Write returned " << ret << std::endl;
+                    LDEBUG(UBusRuntime)
+                        << "Write returned " << ret << std::endl;
                 }
             }
         }
@@ -298,22 +306,22 @@ void UBusRuntime::process_event_message() {
         }
         int ret = poll(poll_fd_list, sub_list_.size(), 1000);
         if (ret < 0) {
-            LOG(UBusRuntime) << "Error in poll" << std::endl;
+            LDEBUG(UBusRuntime) << "Error in poll" << std::endl;
         } else if (ret == 0) {
-            // LOG(UBusRuntime) << "Poll timeout" << std::endl;
+            // LDEBUG(UBusRuntime) << "Poll timeout" << std::endl;
         } else {
             for (int i = 0; i < max_connections_; ++i) {
                 if (poll_fd_list[i].revents & POLLIN) {
-                    // LOG(UBusRuntime) << "Socket " << poll_fd_list[i].fd
+                    // LDEBUG(UBusRuntime) << "Socket " << poll_fd_list[i].fd
                     //                 << " is readable" << std::endl;
-                    // LOG(UBusRuntime) << "Revents is " <<
+                    // LDEBUG(UBusRuntime) << "Revents is " <<
                     // poll_fd_list[i].revents
                     //                 << std::endl;
                     char header_buff[sizeof(FrameHeader)];
                     size_t read_size = read(poll_fd_list[i].fd, &header_buff,
                                             sizeof(FrameHeader));
                     if (read_size < sizeof(FrameHeader)) {
-                        LOG(UBusRuntime)
+                        LDEBUG(UBusRuntime)
                             << "Failed to read header, size of data read : "
                             << read_size << std::endl;
                     }
@@ -321,32 +329,32 @@ void UBusRuntime::process_event_message() {
                     FrameHeader *header =
                         reinterpret_cast<FrameHeader *>(header_buff);
                     if (header->data_length > 0) {
-                        LOG(UBusRuntime)
+                        LDEBUG(UBusRuntime)
                             << "Size of data to read : " << header->data_length
                             << std::endl;
                         char content_buff[header->data_length];
                         read_size = readn(poll_fd_list[i].fd, &content_buff,
                                           header->data_length);
                         if (read_size < header->data_length) {
-                            LOG(UBusRuntime)
+                            LDEBUG(UBusRuntime)
                                 << "Failed to read content" << std::endl;
                         }
                         content =
                             std::string(content_buff, header->data_length);
-                        LOG(UBusRuntime)
+                        LDEBUG(UBusRuntime)
                             << "Content : " << content << std::endl;
                     }
 
                     switch (header->message_type) {
                         case FRAME_EVENT:
-                            LOG(UBusRuntime)
+                            LDEBUG(UBusRuntime)
                                 << "New event message" << std::endl;
                             {
                                 // find the corresponding sub_event_info
                                 for (auto &sub_event_info : sub_list_) {
                                     if (sub_event_info.second.socket ==
                                         poll_fd_list[i].fd) {
-                                        LOG(UBusRuntime)
+                                        LDEBUG(UBusRuntime)
                                             << "Topic is "
                                             << sub_event_info.second.topic;
                                         (*sub_event_info.second.callback)(
@@ -357,7 +365,7 @@ void UBusRuntime::process_event_message() {
                             }
                             break;
                         default:
-                            LOG(UBusRuntime)
+                            LDEBUG(UBusRuntime)
                                 << "Invalid frame header" << std::endl;
                             break;
                     }

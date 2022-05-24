@@ -10,7 +10,7 @@
 
 bool UBusMaster::init(const std::string &ip, uint32_t port) {
     if ((control_sock_ = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        LOG(UBusMaster) << "Failed to create socket" << std::endl;
+        LERROR(UBusMaster) << "Failed to create socket" << std::endl;
         control_sock_ = 0;
         return false;
     }
@@ -19,13 +19,14 @@ bool UBusMaster::init(const std::string &ip, uint32_t port) {
     control_addr.sin_family = AF_INET;
     control_addr.sin_port = htons(port);
     if (inet_pton(AF_INET, ip.c_str(), &control_addr.sin_addr) <= 0) {
-        LOG(UBusMaster) << "Failed to convert ip address " << ip << std::endl;
+        LERROR(UBusMaster) << "Failed to convert ip address " << ip
+                           << std::endl;
         return false;
     }
     if (bind(control_sock_, reinterpret_cast<sockaddr *>(&control_addr),
              sizeof(control_addr)) < 0) {
-        LOG(UBusMaster) << "Failed to convert bind to ip " << ip << " port "
-                        << port << std::endl;
+        LERROR(UBusMaster) << "Failed to convert bind to ip " << ip << " port "
+                           << port << std::endl;
         return false;
     }
 
@@ -85,22 +86,22 @@ void UBusMaster::process_control_message() {
         }
         int ret = poll(poll_fd_list, participant_list_.size(), 1000);
         if (ret < 0) {
-            LOG(UBusMaster) << "Error in poll" << std::endl;
+            LERROR(UBusMaster) << "Error in poll" << std::endl;
         } else if (ret == 0) {
-            // LOG(UBusMaster) << "Poll timeout" << std::endl;
+            // LDEBUG(UBusMaster) << "Poll timeout" << std::endl;
         } else {
             for (int i = 0; i < max_connections_; ++i) {
                 if (poll_fd_list[i].revents & POLLIN) {
-                    // LOG(UBusMaster) << "Socket " << poll_fd_list[i].fd
+                    // LDEBUG(UBusMaster) << "Socket " << poll_fd_list[i].fd
                     //                 << " is readable" << std::endl;
-                    // LOG(UBusMaster) << "Revents is " <<
+                    // LDEBUG(UBusMaster) << "Revents is " <<
                     // poll_fd_list[i].revents
                     //                 << std::endl;
                     char header_buff[sizeof(FrameHeader)];
                     size_t read_size = read(poll_fd_list[i].fd, &header_buff,
                                             sizeof(FrameHeader));
                     if (read_size < sizeof(FrameHeader)) {
-                        LOG(UBusMaster)
+                        LERROR(UBusMaster)
                             << "Failed to read header, size of data read : "
                             << read_size << std::endl;
                     }
@@ -108,34 +109,35 @@ void UBusMaster::process_control_message() {
                     FrameHeader *header =
                         reinterpret_cast<FrameHeader *>(header_buff);
                     if (header->data_length > 0) {
-                        LOG(UBusMaster)
+                        LDEBUG(UBusMaster)
                             << "Size of data to read : " << header->data_length
                             << std::endl;
                         char content_buff[header->data_length];
                         read_size = readn(poll_fd_list[i].fd, &content_buff,
                                           header->data_length);
                         if (read_size < header->data_length) {
-                            LOG(UBusMaster)
+                            LERROR(UBusMaster)
                                 << "Failed to read content" << std::endl;
                         }
                         content =
                             std::string(content_buff, header->data_length);
-                        LOG(UBusMaster) << "Content : " << content << std::endl;
+                        LDEBUG(UBusMaster)
+                            << "Content : " << content << std::endl;
                     }
 
                     switch (header->message_type) {
                         case FRAME_INITIATION:
-                            LOG(UBusMaster)
+                            LERROR(UBusMaster)
                                 << "Invalid frame header" << std::endl;
                             break;
                         case FRAME_KEEP_ALIVE:
-                            // LOG(UBusMaster)
+                            // LDEBUG(UBusMaster)
                             //     << "Keep alive message" << std::endl;
                             socket_participant_mapping_[poll_fd_list[i].fd]
                                 ->watchdog_counter = 0;
                             break;
                         case FRAME_PUBLISH:
-                            LOG(UBusMaster)
+                            LINFO(UBusMaster)
                                 << "New publish message" << std::endl;
                             {
                                 std::string response;
@@ -143,7 +145,7 @@ void UBusMaster::process_control_message() {
                                     nlohmann::json::parse(content);
                                 if (!content_json.contains("topic") ||
                                     !content_json.contains("type_id")) {
-                                    LOG(UBusMaster)
+                                    LDEBUG(UBusMaster)
                                         << "Invalid frame" << std::endl;
                                     response = "INVALID";
                                 } else if (event_list_.find(content_json.at(
@@ -179,20 +181,20 @@ void UBusMaster::process_control_message() {
                                          poll_fd_list[i].fd,
                                          static_cast<void *>(&frame.header),
                                          sizeof(FrameHeader))) < 0) {
-                                    LOG(UBusMaster) << "Write returned " << ret
-                                                    << std::endl;
+                                    LINFO(UBusMaster) << "Write returned "
+                                                      << ret << std::endl;
                                 }
                                 if ((ret = writen(
                                          poll_fd_list[i].fd,
                                          static_cast<void *>(frame.data),
                                          frame.header.data_length)) < 0) {
-                                    LOG(UBusRuntime) << "Write returned " << ret
-                                                     << std::endl;
+                                    LINFO(UBusRuntime) << "Write returned "
+                                                       << ret << std::endl;
                                 }
                             }
                             break;
                         case FRAME_SUBSCRIBE:
-                            LOG(UBusMaster)
+                            LINFO(UBusMaster)
                                 << "New subscribe message" << std::endl;
                             {
                                 std::string response;
@@ -203,7 +205,7 @@ void UBusMaster::process_control_message() {
                                     nlohmann::json::parse(content);
                                 if (!content_json.contains("topic") ||
                                     !content_json.contains("type_id")) {
-                                    LOG(UBusMaster)
+                                    LDEBUG(UBusMaster)
                                         << "Invalid frame" << std::endl;
                                     response = "INVALID";
                                 } else {
@@ -235,10 +237,6 @@ void UBusMaster::process_control_message() {
                                         publisher_name;
                                 }
 
-                                // LOG(DEBUG) << "test :" << std::endl <<
-                                // response << std::endl << publisher_name <<
-                                // std::endl << publisher_ip << std::endl <<
-                                // publisher_port << std::endl;
                                 std::string serilized_string =
                                     response_json.dump();
                                 const char *char_struct =
@@ -254,15 +252,15 @@ void UBusMaster::process_control_message() {
                                          poll_fd_list[i].fd,
                                          static_cast<void *>(&frame.header),
                                          sizeof(FrameHeader))) < 0) {
-                                    LOG(UBusMaster) << "Write returned " << ret
-                                                    << std::endl;
+                                    LDEBUG(UBusMaster) << "Write returned "
+                                                       << ret << std::endl;
                                 }
                                 if ((ret = writen(
                                          poll_fd_list[i].fd,
                                          static_cast<void *>(frame.data),
                                          frame.header.data_length)) < 0) {
-                                    LOG(UBusRuntime) << "Write returned " << ret
-                                                     << std::endl;
+                                    LDEBUG(UBusRuntime) << "Write returned "
+                                                        << ret << std::endl;
                                 }
                             }
                             break;
@@ -274,30 +272,11 @@ void UBusMaster::process_control_message() {
         }
         usleep(100000);
     }
-
-    // int32_t epollfd = epoll_create1(0);
-    // if (epollfd == -1) {
-    //     LOG(UBusMaster) << "Failed to create epoll" << std::endl;
-    //     return;
-    // }
-    // while (1) {
-    //     if (participant_list_.size() == 0) {
-    //         sleep(1);
-    //         continue;
-    //     }
-    //     epoll_event events[participant_list_.size()];
-    //     uint32_t index = 0;
-    //     for (auto &participant : participant_list_) {
-    //         events[index].events = EPOLLINl
-    //         events[index].data.fd = participant.second->socket;
-    //         index ++;
-    //     }
-    // };
 }
 
 void UBusMaster::accept_new_connection() {
     if (listen(control_sock_, 4096) < 0) {
-        LOG(UBusMaster) << "Failed to start listening" << std::endl;
+        LDEBUG(UBusMaster) << "Failed to start listening" << std::endl;
         return;
     }
 
@@ -311,22 +290,23 @@ void UBusMaster::accept_new_connection() {
         char header_buff[sizeof(FrameHeader)];
         size_t read_size = readn(fd, &header_buff, sizeof(FrameHeader));
         if (read_size < sizeof(FrameHeader)) {
-            LOG(UBusMaster) << "Failed to read header" << std::endl;
+            LERROR(UBusMaster) << "Failed to read header" << std::endl;
         } else {
             FrameHeader *header = reinterpret_cast<FrameHeader *>(header_buff);
             if (header->message_type != FRAME_INITIATION) {
-                LOG(UBusMaster) << "Invalid frame header" << std::endl;
+                LERROR(UBusMaster) << "Invalid frame header" << std::endl;
                 continue;
             }
-            LOG(UBusMaster) << "Size of data to read : " << header->data_length
-                            << std::endl;
+            LDEBUG(UBusMaster)
+                << "Size of data to read : " << header->data_length
+                << std::endl;
             char content_buff[header->data_length];
             read_size = readn(fd, &content_buff, header->data_length);
             if (read_size < header->data_length) {
-                LOG(UBusMaster) << "Failed to read content" << std::endl;
+                LERROR(UBusMaster) << "Failed to read content" << std::endl;
             }
             std::string content(content_buff, header->data_length);
-            LOG(UBusMaster) << "Content : " << content << std::endl;
+            LDEBUG(UBusMaster) << "Content : " << content << std::endl;
             try {
                 nlohmann::json json_struct = nlohmann::json::parse(content);
                 if (json_struct.contains("name") &&
@@ -348,7 +328,7 @@ void UBusMaster::accept_new_connection() {
                         participant_list_[participant_info->name] =
                             participant_info;
                         socket_participant_mapping_[fd] = participant_info;
-                        LOG(UBusMaster)
+                        LINFO(UBusMaster)
                             << "Registered new participant :"
                             << participant_info->name << std::endl
                             << "Ip :" << participant_info->ip << std::endl
@@ -361,7 +341,7 @@ void UBusMaster::accept_new_connection() {
                         std::string serilized_string = response_json.dump();
                         const char *char_struct = serilized_string.c_str();
                         frame.header.data_length = serilized_string.size();
-                        LOG(UBusMaster)
+                        LDEBUG(UBusMaster)
                             << "Data length : " << frame.header.data_length
                             << std::endl;
                         frame.data = new uint8_t[frame.header.data_length];
@@ -371,25 +351,25 @@ void UBusMaster::accept_new_connection() {
                         if ((ret = writen(participant_info->socket,
                                           static_cast<void *>(&frame.header),
                                           sizeof(FrameHeader))) < 0) {
-                            LOG(UBusMaster)
+                            LINFO(UBusMaster)
                                 << "Write returned " << ret << std::endl;
                         }
                         if ((ret = writen(participant_info->socket,
                                           static_cast<void *>(frame.data),
                                           frame.header.data_length)) < 0) {
-                            LOG(UBusRuntime)
+                            LINFO(UBusRuntime)
                                 << "Write returned " << ret << std::endl;
                         }
                     } else {
-                        LOG(UBusMaster) << "Duplicate request for "
-                                        << json_struct["name"] << std::endl;
+                        LERROR(UBusMaster) << "Duplicate request for "
+                                           << json_struct["name"] << std::endl;
                         Frame frame;
                         nlohmann::json response_json;
                         response_json["response"] = "DUPLICATE";
                         std::string serilized_string = response_json.dump();
                         const char *char_struct = serilized_string.c_str();
                         frame.header.data_length = serilized_string.size();
-                        LOG(UBusMaster)
+                        LDEBUG(UBusMaster)
                             << "Data length : " << frame.header.data_length
                             << std::endl;
                         frame.data = new uint8_t[frame.header.data_length];
@@ -399,20 +379,21 @@ void UBusMaster::accept_new_connection() {
                         if ((ret =
                                  writen(fd, static_cast<void *>(&frame.header),
                                         sizeof(FrameHeader))) < 0) {
-                            LOG(UBusMaster)
+                            LINFO(UBusMaster)
                                 << "Write returned " << ret << std::endl;
                         }
                         if ((ret = writen(fd, static_cast<void *>(frame.data),
                                           frame.header.data_length)) < 0) {
-                            LOG(UBusRuntime)
+                            LINFO(UBusRuntime)
                                 << "Write returned " << ret << std::endl;
                         }
                     }
                 } else {
-                    LOG(UBusMaster) << "Invalid joining request" << std::endl;
+                    LERROR(UBusMaster)
+                        << "Invalid joining request" << std::endl;
                 }
             } catch (nlohmann::json::exception &e) {
-                LOG(UBusMaster)
+                LERROR(UBusMaster)
                     << "Exception in json : " << e.what() << std::endl;
             }
         }
@@ -423,7 +404,7 @@ void UBusMaster::keep_alive_worker() {
     while (1) {
         for (auto &participant : participant_list_) {
             if (++participant.second->watchdog_counter >= 6) {
-                LOG(UBusMaster)
+                LINFO(UBusMaster)
                     << participant.second->name << " is dead" << std::endl;
                 unprocessed_dead_participants_.push(participant.first);
             }

@@ -23,7 +23,7 @@ class TestEvent1 : public EventType {
         *data = "Event1 Body";
     }
     virtual void unserilize(const std::string &data) override {
-        LOG(TestEvent1) << "got data " << data << std::endl;
+        LDEBUG(TestEvent1) << "got data " << data << std::endl;
     }
 };
 
@@ -36,7 +36,7 @@ class TestEvent2 : public EventType {
         *data = "Event2 Body";
     }
     virtual void unserilize(const std::string &data) override {
-        LOG(TestEvent2) << "got data " << data << std::endl;
+        LDEBUG(TestEvent2) << "got data " << data << std::endl;
     }
 };
 
