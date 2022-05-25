@@ -300,11 +300,12 @@ bool UBusRuntime::subscribe_event(
                             return false;
                         }
 
-                        if (connect(sub_socket,
-                                    reinterpret_cast<sockaddr *>(&sub_sockaddr),
-                                    sizeof(sub_sockaddr)) != 0) {
+                        int32_t ret;
+                        if ((ret = connect(sub_socket,
+                                reinterpret_cast<sockaddr *>(&sub_sockaddr),
+                                sizeof(sub_sockaddr))) != 0) {
                             LERROR(UBusRuntime)
-                                << "Failed to connect to publisher"
+                                << "Failed to connect to publisher, ret " << ret
                                 << std::endl;
                             return false;
                         }

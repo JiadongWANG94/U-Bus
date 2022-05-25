@@ -53,7 +53,7 @@ class UBusMaster {
         participant_list_;
     std::unordered_map<uint32_t, std::shared_ptr<UBusParticipantInfo> >
         socket_participant_mapping_;
-    std::shared_mutex participant_list_mtx_;
+    std::shared_mutex participant_info_mtx_;
 
     std::queue<std::string> unprocessed_new_participants_;
     std::mutex unprocessed_new_participants_mtx_;
@@ -61,7 +61,7 @@ class UBusMaster {
     std::mutex unprocessed_dead_participants_mtx_;
 
     std::unordered_map<std::string, EventInfo> event_list_;
-    std::mutex event_list__mtx_;
+    std::mutex event_list_mtx_;
 
     std::unordered_map<std::string, MethodInfo> method_list_;
     std::mutex method_list_mtx_;

@@ -56,7 +56,7 @@ void UBusMaster::process_control_message() {
             std::lock_guard<std::mutex> lock(
                 unprocessed_dead_participants_mtx_);
             while (!unprocessed_dead_participants_.empty()) {
-                WritingSharedLockGuard shared_lock(participant_list_mtx_);
+                WritingSharedLockGuard shared_lock(participant_info_mtx_);
                 auto &participant = unprocessed_dead_participants_.front();
                 unprocessed_dead_participants_.pop();
                 for (int i = 0; i < max_connections_; ++i) {
@@ -68,6 +68,7 @@ void UBusMaster::process_control_message() {
                 }
                 auto ite = participant_list_.find(participant);
                 if (ite != participant_list_.end()) {
+                    std::lock_guard<std::mutex> lock_event(event_list_mtx_);
                     for (auto &event : ite->second->published_topic_list) {
                         event_list_.erase(event.first);
                     }
@@ -85,7 +86,7 @@ void UBusMaster::process_control_message() {
         {
             std::lock_guard<std::mutex> lock(unprocessed_new_participants_mtx_);
             while (!unprocessed_new_participants_.empty()) {
-                WritingSharedLockGuard shared_lock(participant_list_mtx_);
+                ReadingSharedLockGuard shared_lock(participant_info_mtx_);
                 auto &participant = unprocessed_new_participants_.front();
                 unprocessed_new_participants_.pop();
                 for (int i = 0; i < max_connections_; ++i) {
@@ -99,8 +100,11 @@ void UBusMaster::process_control_message() {
                 }
             }
         }
-
-        int ret = poll(poll_fd_list, participant_list_.size(), 1000);
+        int ret;
+        {
+            ReadingSharedLockGuard shared_lock(participant_info_mtx_);
+            ret = poll(poll_fd_list, participant_list_.size(), 1000);
+        }
         if (ret < 0) {
             LERROR(UBusMaster) << "Error in poll" << std::endl;
         } else if (ret == 0) {
@@ -139,7 +143,9 @@ void UBusMaster::process_control_message() {
                         if (read_size < header->data_length) {
                             LERROR(UBusMaster)
                                 << "Failed to read content" << std::endl;
+                            continue;
                         }
+                        LINFO(DEBUG) << "read size " << read_size << std::endl;
                         content =
                             std::string(content_buff, header->data_length);
                         LINFO(UBusMaster)
@@ -151,12 +157,14 @@ void UBusMaster::process_control_message() {
                             LERROR(UBusMaster)
                                 << "Invalid frame header" << std::endl;
                             break;
-                        case FRAME_KEEP_ALIVE:
-                            // LDEBUG(UBusMaster)
-                            //     << "Keep alive message" << std::endl;
+                        case FRAME_KEEP_ALIVE: {
+                            LTRACE(UBusMaster)
+                                << "Keep alive message" << std::endl;
+                            WritingSharedLockGuard shared_lock(
+                                participant_info_mtx_);
                             socket_participant_mapping_[poll_fd_list[i].fd]
                                 ->watchdog_counter = 0;
-                            break;
+                        } break;
                         case FRAME_PUBLISH:
                             LINFO(UBusMaster)
                                 << "New publish message" << std::endl;
@@ -164,6 +172,10 @@ void UBusMaster::process_control_message() {
                                 std::string response;
                                 nlohmann::json content_json =
                                     nlohmann::json::parse(content);
+                                ReadingSharedLockGuard shared_lock(
+                                    participant_info_mtx_);
+                                std::lock_guard<std::mutex> lock_event(
+                                    event_list_mtx_);
                                 if (!content_json.contains("topic") ||
                                     !content_json.contains("type_id")) {
                                     LDEBUG(UBusMaster)
@@ -214,6 +226,7 @@ void UBusMaster::process_control_message() {
                                     LINFO(UBusRuntime) << "Write returned "
                                                        << ret << std::endl;
                                 }
+                                delete[] frame.data;
                             }
                             break;
                         case FRAME_SUBSCRIBE:
@@ -232,6 +245,8 @@ void UBusMaster::process_control_message() {
                                         << "Invalid frame" << std::endl;
                                     response = "INVALID";
                                 } else {
+                                    std::lock_guard<std::mutex> lock_event(
+                                        event_list_mtx_);
                                     auto event_info = event_list_.find(
                                         content_json.at("topic"));
                                     if (event_info == event_list_.end()) {
@@ -285,6 +300,7 @@ void UBusMaster::process_control_message() {
                                     LDEBUG(UBusRuntime) << "Write returned "
                                                         << ret << std::endl;
                                 }
+                                delete[] frame.data;
                             }
                             break;
                         default:
@@ -337,7 +353,7 @@ void UBusMaster::accept_new_connection() {
                     json_struct.contains("listening_port")) {
                     std::lock_guard<std::mutex> lock(
                         unprocessed_new_participants_mtx_);
-                    WritingSharedLockGuard lock_shared(participant_list_mtx_);
+                    WritingSharedLockGuard lock_shared(participant_info_mtx_);
                     if (participant_list_.find(json_struct["name"]) ==
                         participant_list_.end()) {
                         std::shared_ptr<UBusParticipantInfo> participant_info =
@@ -360,6 +376,7 @@ void UBusMaster::accept_new_connection() {
                             << "Ip :" << participant_info->ip << std::endl
                             << "Port :" << participant_info->port << std::endl;
                         unprocessed_new_participants_.push(json_struct["name"]);
+                        LWARN(DEBUG) << "HERE" << std::endl;
 
                         Frame frame;
                         nlohmann::json response_json;
@@ -386,6 +403,7 @@ void UBusMaster::accept_new_connection() {
                             LINFO(UBusRuntime)
                                 << "Write returned " << ret << std::endl;
                         }
+                        delete[] frame.data;
                     } else {
                         LERROR(UBusMaster) << "Duplicate request for "
                                            << json_struct["name"] << std::endl;
@@ -413,6 +431,7 @@ void UBusMaster::accept_new_connection() {
                             LINFO(UBusRuntime)
                                 << "Write returned " << ret << std::endl;
                         }
+                        delete[] frame.data;
                     }
                 } else {
                     LERROR(UBusMaster)
@@ -428,13 +447,16 @@ void UBusMaster::accept_new_connection() {
 
 void UBusMaster::keep_alive_worker() {
     while (1) {
-        for (auto &participant : participant_list_) {
-            if (++participant.second->watchdog_counter >= 3) {
-                std::lock_guard<std::mutex> lock(
-                    unprocessed_dead_participants_mtx_);
-                LINFO(UBusMaster)
-                    << participant.second->name << " is dead" << std::endl;
-                unprocessed_dead_participants_.push(participant.first);
+        {
+            std::lock_guard<std::mutex> lock(
+                unprocessed_dead_participants_mtx_);
+            ReadingSharedLockGuard lock_shared(participant_info_mtx_);
+            for (auto &participant : participant_list_) {
+                if (++participant.second->watchdog_counter >= 3) {
+                    LINFO(UBusMaster)
+                        << participant.second->name << " is dead" << std::endl;
+                    unprocessed_dead_participants_.push(participant.first);
+                }
             }
         }
         sleep(1);

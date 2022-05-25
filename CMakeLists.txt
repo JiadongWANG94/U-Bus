@@ -45,5 +45,12 @@ target_link_libraries(test-ubus-subscriber
         ubus
 )
 
+add_executable(test-ubus-subscriber-2 test/test_ubus_subscriber_2.cpp)
+
+target_link_libraries(test-ubus-subscriber-2
+    PUBLIC
+        ubus
+)
+
 
 # add_subdirectory(test)

@@ -14,7 +14,7 @@ bool UBusRuntime::init(const std::string &name,
 
     // init listening_sock
     if ((listening_sock_ = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        LDEBUG(UBusMaster) << "Failed to create socket" << std::endl;
+        LERROR(UBusMaster) << "Failed to create socket" << std::endl;
         listening_sock_ = 0;
         return false;
     }
@@ -25,13 +25,13 @@ bool UBusRuntime::init(const std::string &name,
     listening_addr.sin_port = htons(0);
     if (inet_pton(AF_INET, std::string("127.0.0.1").c_str(),
                   &listening_addr.sin_addr) <= 0) {
-        LDEBUG(UBusMaster) << "Failed to convert ip address " << ip
+        LERROR(UBusMaster) << "Failed to convert ip address " << ip
                            << std::endl;
         return false;
     }
     if (bind(listening_sock_, reinterpret_cast<sockaddr *>(&listening_addr),
              sizeof(listening_addr)) < 0) {
-        LDEBUG(UBusMaster) << "Failed to convert bind to ip " << ip << " port "
+        LERROR(UBusMaster) << "Failed to convert bind to ip " << ip << " port "
                            << port << std::endl;
         return false;
     }
@@ -41,7 +41,7 @@ bool UBusRuntime::init(const std::string &name,
     read_size = sizeof(socket_addr);
     if (getsockname(listening_sock_, reinterpret_cast<sockaddr *>(&socket_addr),
                     &read_size) < 0) {
-        LDEBUG(UBusRuntime) << "Failed to getsockname" << std::endl;
+        LERROR(UBusRuntime) << "Failed to getsockname" << std::endl;
         return false;
     }
 
@@ -50,7 +50,7 @@ bool UBusRuntime::init(const std::string &name,
 
     // init control_sock
     if ((control_sock_ = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        LDEBUG(UBusRuntime) << "Failed to create socket" << std::endl;
+        LERROR(UBusRuntime) << "Failed to create socket" << std::endl;
         control_sock_ = 0;
         return false;
     }
@@ -59,14 +59,14 @@ bool UBusRuntime::init(const std::string &name,
     control_addr.sin_family = AF_INET;
     control_addr.sin_port = htons(port);
     if (inet_pton(AF_INET, ip.c_str(), &control_addr.sin_addr) <= 0) {
-        LDEBUG(UBusRuntime)
+        LERROR(UBusRuntime)
             << "Failed to convert ip address " << ip << std::endl;
         return false;
     }
 
     if (connect(control_sock_, reinterpret_cast<sockaddr *>(&control_addr),
                 sizeof(control_addr)) != 0) {
-        LDEBUG(UBusRuntime) << "Failed to connect to master" << std::endl;
+        LERROR(UBusRuntime) << "Failed to connect to master" << std::endl;
         return false;
     }
 
@@ -97,13 +97,14 @@ bool UBusRuntime::init(const std::string &name,
                         << std::string(reinterpret_cast<char *>(frame.data),
                                        frame.header.data_length)
                         << std::endl;
+    delete[] frame.data;
 
     {
         char header_buff[sizeof(FrameHeader)];
         size_t read_size =
             readn(control_sock_, &header_buff, sizeof(FrameHeader));
         if (read_size < sizeof(FrameHeader)) {
-            LDEBUG(UBusRuntime) << "Failed to read header" << std::endl;
+            LERROR(UBusRuntime) << "Failed to read header" << std::endl;
         } else {
             FrameHeader *header = reinterpret_cast<FrameHeader *>(header_buff);
             LDEBUG(UBusRuntime)
@@ -113,27 +114,27 @@ bool UBusRuntime::init(const std::string &name,
             read_size =
                 readn(control_sock_, &content_buff, header->data_length);
             if (read_size < header->data_length) {
-                LDEBUG(UBusRuntime) << "Failed to read content" << std::endl;
+                LERROR(UBusRuntime) << "Failed to read content" << std::endl;
             }
             std::string content(content_buff, header->data_length);
             try {
                 nlohmann::json response_json = nlohmann::json::parse(content);
                 if (response_json.contains("response")) {
                     if (response_json["response"] == "OK") {
-                        LDEBUG(UBusRuntime)
+                        LINFO(UBusRuntime)
                             << "Registered to master" << std::endl;
                     } else {
-                        LDEBUG(UBusRuntime)
+                        LERROR(UBusRuntime)
                             << "Error from master : "
                             << response_json["response"] << std::endl;
                         return false;
                     }
                 } else {
-                    LDEBUG(UBusRuntime)
+                    LERROR(UBusRuntime)
                         << "Invalid response from master" << std::endl;
                 }
             } catch (nlohmann::json::exception &e) {
-                LDEBUG(UBusRuntime)
+                LERROR(UBusRuntime)
                     << "Exception in json : " << e.what() << std::endl;
             }
         }
@@ -208,20 +209,20 @@ void UBusRuntime::start_listening_socket() {
                     auto pub_event_info =
                         pub_list_.find(response_json.at("topic"));
                     if (pub_event_info == pub_list_.end()) {
-                        LDEBUG(UBusRuntime) << "Error wrong topic" << std::endl;
+                        LERROR(UBusRuntime) << "Error wrong topic" << std::endl;
                         response = "INVALID";
                     } else if (pub_event_info->second.type !=
                                response_json.at("type_id").get<uint32_t>()) {
-                        LDEBUG(UBusRuntime)
+                        LERROR(UBusRuntime)
                             << "Error wrong type id" << std::endl;
                         response = "INVALID";
                     } else if (pub_event_info->second.client_socket_map.find(
                                    response_json.at("name")) !=
                                pub_event_info->second.client_socket_map.end()) {
-                        LDEBUG(UBusRuntime) << "Error duplicate" << std::endl;
+                        LERROR(UBusRuntime) << "Error duplicate" << std::endl;
                         response = "DUPLICATE";
                     } else {
-                        LDEBUG(UBusRuntime)
+                        LINFO(UBusRuntime)
                             << "Registered new subscriber "
                             << response_json.at("name") << std::endl;
                         pub_event_info->second
@@ -263,6 +264,7 @@ void UBusRuntime::start_listening_socket() {
                     LDEBUG(UBusRuntime)
                         << "Write returned " << ret << std::endl;
                 }
+                delete[] frame.data;
             }
         }
     }

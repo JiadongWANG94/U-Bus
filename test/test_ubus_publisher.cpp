@@ -21,5 +21,9 @@ int main() {
     event2.data = "Second message";
     runtime.publish_event("test_topic", event2);
     sleep(10);
+    TestEvent1 event3;
+    event3.data = "Third message";
+    runtime.publish_event("test_topic", event3);
+    sleep(10);
     return 0;
 }
