@@ -1,3 +1,7 @@
+/**
+ * Wang Jiadong <jiadong.wang.94@outlook.com>
+ */
+
 #pragma once
 
 #include <mutex>
@@ -6,9 +10,7 @@
 class ReadingSharedLockGuard {
  public:
     ReadingSharedLockGuard() = delete;
-    ReadingSharedLockGuard(std::shared_mutex &mutex) : mutex_(mutex) {
-        mutex_.lock_shared();
-    }
+    ReadingSharedLockGuard(std::shared_mutex &mutex) : mutex_(mutex) { mutex_.lock_shared(); }
     ~ReadingSharedLockGuard() { mutex_.unlock_shared(); }
 
  private:
@@ -18,9 +20,7 @@ class ReadingSharedLockGuard {
 class WritingSharedLockGuard {
  public:
     WritingSharedLockGuard() = delete;
-    WritingSharedLockGuard(std::shared_mutex &mutex) : mutex_(mutex) {
-        mutex_.lock();
-    }
+    WritingSharedLockGuard(std::shared_mutex &mutex) : mutex_(mutex) { mutex_.lock(); }
     ~WritingSharedLockGuard() { mutex_.unlock(); }
 
  private:

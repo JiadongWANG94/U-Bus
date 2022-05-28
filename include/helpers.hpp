@@ -1,3 +1,7 @@
+/**
+ * Wang Jiadong <jiadong.wang.94@outlook.com>
+ */
+
 #pragma once
 
 #include <unistd.h>
@@ -5,6 +9,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+
+/// Copied from Unix Network Programming
 
 inline ssize_t /* Read "n" bytes from a descriptor. */
 readn(int fd, void *vptr, size_t n) {

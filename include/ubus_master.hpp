@@ -1,3 +1,7 @@
+/**
+ * Wang Jiadong <jiadong.wang.94@outlook.com>
+ */
+
 #pragma once
 
 #include <sys/socket.h>
@@ -35,7 +39,7 @@ class UBusMaster {
         uint32_t listening_port = 0;
         std::unordered_map<std::string, uint32_t> published_topic_list;
         std::unordered_map<std::string, uint32_t> subscribed_topic_list;
-        std::unordered_map<std::string, uint32_t> method_list;
+        std::unordered_map<std::string, std::pair<uint32_t, uint32_t> > method_list;
         uint8_t watchdog_counter = 0;
     };
     struct EventInfo {
@@ -46,13 +50,12 @@ class UBusMaster {
     };
     struct MethodInfo {
         std::string name;
-        uint32_t type;
+        uint32_t request_type;
+        uint32_t response_type;
         std::shared_ptr<UBusParticipantInfo> provider;
     };
-    std::unordered_map<std::string, std::shared_ptr<UBusParticipantInfo> >
-        participant_list_;
-    std::unordered_map<uint32_t, std::shared_ptr<UBusParticipantInfo> >
-        socket_participant_mapping_;
+    std::unordered_map<std::string, std::shared_ptr<UBusParticipantInfo> > participant_list_;
+    std::unordered_map<uint32_t, std::shared_ptr<UBusParticipantInfo> > socket_participant_mapping_;
     std::shared_mutex participant_info_mtx_;
 
     std::queue<std::string> unprocessed_new_participants_;

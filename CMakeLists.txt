@@ -52,5 +52,20 @@ target_link_libraries(test-ubus-subscriber-2
         ubus
 )
 
+add_executable(test-ubus-method-provider test/test_ubus_method_provider.cpp)
 
+target_link_libraries(test-ubus-method-provider
+    PUBLIC
+        ubus
+)
+
+add_executable(test-ubus-method-requester test/test_ubus_method_requester.cpp)
+
+target_link_libraries(test-ubus-method-requester
+    PUBLIC
+        ubus
+)
+
+
+add_executable(test-memory-order test/test_memory_order.cpp)
 # add_subdirectory(test)
