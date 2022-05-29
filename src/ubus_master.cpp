@@ -387,7 +387,8 @@ void UBusMaster::accept_new_connection() {
                     WritingSharedLockGuard lock_shared(participant_info_mtx_);
                     if (json_struct["api_version"] != api_version_) {
                         response = "VERSION_MISMATCH";
-                    } else if(participant_list_.find(json_struct["name"].get<std::string>()) == participant_list_.end()) {
+                    } else if (participant_list_.find(json_struct["name"].get<std::string>()) ==
+                               participant_list_.end()) {
                         std::shared_ptr<UBusParticipantInfo> participant_info = std::make_shared<UBusParticipantInfo>();
                         participant_info->name = json_struct["name"].get<std::string>();
                         participant_info->ip = std::string(inet_ntoa(incoming_addr.sin_addr));
@@ -420,12 +421,10 @@ void UBusMaster::accept_new_connection() {
                 frame.data = new uint8_t[ntohl(frame.header.data_length)];
                 strncpy(reinterpret_cast<char *>(frame.data), char_struct, serialized_string.size());
                 int32_t ret;
-                if ((ret = writen(fd, static_cast<void *>(&frame.header),
-                                    sizeof(FrameHeader))) < 0) {
+                if ((ret = writen(fd, static_cast<void *>(&frame.header), sizeof(FrameHeader))) < 0) {
                     LINFO(UBusMaster) << "Write returned " << ret << std::endl;
                 }
-                if ((ret = writen(fd, static_cast<void *>(frame.data),
-                                    ntohl(frame.header.data_length))) < 0) {
+                if ((ret = writen(fd, static_cast<void *>(frame.data), ntohl(frame.header.data_length))) < 0) {
                     LINFO(UBusRuntime) << "Write returned " << ret << std::endl;
                 }
                 delete[] frame.data;

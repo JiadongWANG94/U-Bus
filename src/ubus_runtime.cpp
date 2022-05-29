@@ -65,7 +65,8 @@ bool UBusRuntime::init(const std::string &name, const std::string &ip, uint32_t 
     }
 
     if ((ret = connect(control_sock_, reinterpret_cast<sockaddr *>(&control_addr), sizeof(control_addr))) != 0) {
-        LERROR(UBusRuntime) << "Failed to connect to master, ret is " << ret << ", err " << strerror(errno) << std::endl;
+        LERROR(UBusRuntime) << "Failed to connect to master, ret is " << ret << ", err " << strerror(errno)
+                            << std::endl;
         return false;
     }
 

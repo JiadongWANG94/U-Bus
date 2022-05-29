@@ -24,7 +24,7 @@
 
 #include "nlohmann/json.hpp"
 
-#include "event.hpp"
+#include "message.hpp"
 #include "log.hpp"
 #include "frame.hpp"
 #include "helpers.hpp"
@@ -73,7 +73,7 @@ class UBusRuntime {
         EventCallbackHolder(std::function<void(const EventT &)> callback) : callback_(callback) {}
         virtual void operator()(const std::string &data) {
             EventT event;
-            event.unserialize(data);
+            event.deserialize(data);
             callback_(event);
         }
 
@@ -108,7 +108,7 @@ class UBusRuntime {
                 return;
             }
             RequestT req;
-            req.unserialize(request);
+            req.deserialize(request);
             ResponseT resp;
             callback_(req, &resp);
             resp.serialize(response);
@@ -586,7 +586,7 @@ bool UBusRuntime::call_method(const std::string &method, const RequestT &request
                                 LERROR(UBusRuntime) << "Invalid frame format" << std::endl;
                                 return false;
                             }
-                            response->unserialize(response_json.at("response_data"));
+                            response->deserialize(response_json.at("response_data"));
                         } else {
                             LERROR(UBusRuntime) << "Error request method : " << response_json["response"] << std::endl;
                             return false;

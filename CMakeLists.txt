@@ -48,11 +48,21 @@ target_link_libraries(test-ubus-subscriber
         ubus
 )
 
+target_include_directories(test-ubus-subscriber
+    PUBLIC
+        test
+)
+
 add_executable(test-ubus-subscriber-2 test/test_ubus_subscriber_2.cpp)
 
 target_link_libraries(test-ubus-subscriber-2
     PUBLIC
         ubus
+)
+
+target_include_directories(test-ubus-subscriber-2
+    PUBLIC
+        test
 )
 
 add_executable(test-ubus-method-provider test/test_ubus_method_provider.cpp)
@@ -61,6 +71,10 @@ target_link_libraries(test-ubus-method-provider
     PUBLIC
         ubus
 )
+target_include_directories(test-ubus-method-provider
+    PUBLIC
+        test
+)
 
 add_executable(test-ubus-method-requester test/test_ubus_method_requester.cpp)
 
@@ -68,7 +82,32 @@ target_link_libraries(test-ubus-method-requester
     PUBLIC
         ubus
 )
+target_include_directories(test-ubus-method-requester
+    PUBLIC
+        test
+)
 
+add_executable(test-clock-client test/test_clock_client.cpp)
 
-add_executable(test-memory-order test/test_memory_order.cpp)
+target_link_libraries(test-clock-client
+    PUBLIC
+        ubus
+)
+target_include_directories(test-clock-client
+    PUBLIC
+        test
+)
+
+add_executable(test-clock-server test/test_clock_server.cpp)
+
+target_link_libraries(test-clock-server
+    PUBLIC
+        ubus
+)
+target_include_directories(test-clock-server
+    PUBLIC
+        test
+)
+
+# add_executable(test-memory-order test/test_memory_order.cpp)
 # add_subdirectory(test)
