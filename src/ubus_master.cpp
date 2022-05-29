@@ -117,7 +117,7 @@ void UBusMaster::process_control_message() {
             LTRACE(UBusMaster) << "Poll timeout" << std::endl;
         } else {
             for (int i = 0; i < max_connections_; ++i) {
-                if (poll_fd_list[i].revents & POLLIN) {
+                if (poll_fd_list[i].revents & POLLIN && poll_fd_list[i].fd >= 0) {
                     LTRACE(UBusMaster) << "Socket " << poll_fd_list[i].fd << " is readable" << std::endl;
                     LTRACE(UBusMaster) << "Revents is " << poll_fd_list[i].revents << std::endl;
                     char header_buff[sizeof(FrameHeader)];
@@ -380,11 +380,14 @@ void UBusMaster::accept_new_connection() {
             LDEBUG(UBusMaster) << "Content : " << content << std::endl;
             try {
                 nlohmann::json json_struct = nlohmann::json::parse(content);
+                std::string response;
                 if (json_struct.contains("name") && json_struct.contains("listening_ip") &&
-                    json_struct.contains("listening_port")) {
+                    json_struct.contains("listening_port") && json_struct.contains("api_version")) {
                     std::lock_guard<std::mutex> lock(unprocessed_new_participants_mtx_);
                     WritingSharedLockGuard lock_shared(participant_info_mtx_);
-                    if (participant_list_.find(json_struct["name"].get<std::string>()) == participant_list_.end()) {
+                    if (json_struct["api_version"] != api_version_) {
+                        response = "VERSION_MISMATCH";
+                    } else if(participant_list_.find(json_struct["name"].get<std::string>()) == participant_list_.end()) {
                         std::shared_ptr<UBusParticipantInfo> participant_info = std::make_shared<UBusParticipantInfo>();
                         participant_info->name = json_struct["name"].get<std::string>();
                         participant_info->ip = std::string(inet_ntoa(incoming_addr.sin_addr));
@@ -398,48 +401,34 @@ void UBusMaster::accept_new_connection() {
                                           << "Ip :" << participant_info->ip << std::endl
                                           << "Port :" << participant_info->port << std::endl;
                         unprocessed_new_participants_.push(json_struct["name"].get<std::string>());
-                        Frame frame;
-                        nlohmann::json response_json;
-                        response_json["response"] = "OK";
-                        std::string serialized_string = response_json.dump();
-                        const char *char_struct = serialized_string.c_str();
-                        frame.header.data_length = htonl(static_cast<uint32_t>(serialized_string.size()));
-                        LDEBUG(UBusMaster) << "Data length : " << ntohl(frame.header.data_length) << std::endl;
-                        frame.data = new uint8_t[ntohl(frame.header.data_length)];
-                        strncpy(reinterpret_cast<char *>(frame.data), char_struct, serialized_string.size());
-                        int32_t ret;
-                        if ((ret = writen(participant_info->socket, static_cast<void *>(&frame.header),
-                                          sizeof(FrameHeader))) < 0) {
-                            LINFO(UBusMaster) << "Write returned " << ret << std::endl;
-                        }
-                        if ((ret = writen(participant_info->socket, static_cast<void *>(frame.data),
-                                          ntohl(frame.header.data_length))) < 0) {
-                            LINFO(UBusRuntime) << "Write returned " << ret << std::endl;
-                        }
-                        delete[] frame.data;
+                        response = "OK";
                     } else {
                         LERROR(UBusMaster) << "Duplicate request for " << json_struct["name"] << std::endl;
-                        Frame frame;
-                        nlohmann::json response_json;
-                        response_json["response"] = "DUPLICATE";
-                        std::string serialized_string = response_json.dump();
-                        const char *char_struct = serialized_string.c_str();
-                        frame.header.data_length = htonl(static_cast<uint32_t>(serialized_string.size()));
-                        LDEBUG(UBusMaster) << "Data length : " << ntohl(frame.header.data_length) << std::endl;
-                        frame.data = new uint8_t[ntohl(frame.header.data_length)];
-                        strncpy(reinterpret_cast<char *>(frame.data), char_struct, serialized_string.size());
-                        int32_t ret;
-                        if ((ret = writen(fd, static_cast<void *>(&frame.header), sizeof(FrameHeader))) < 0) {
-                            LINFO(UBusMaster) << "Write returned " << ret << std::endl;
-                        }
-                        if ((ret = writen(fd, static_cast<void *>(frame.data), ntohl(frame.header.data_length))) < 0) {
-                            LINFO(UBusRuntime) << "Write returned " << ret << std::endl;
-                        }
-                        delete[] frame.data;
+                        response = "DUPLICATE";
                     }
                 } else {
                     LERROR(UBusMaster) << "Invalid joining request" << std::endl;
+                    response = "INVALID";
                 }
+                Frame frame;
+                nlohmann::json response_json;
+                response_json["response"] = response;
+                std::string serialized_string = response_json.dump();
+                const char *char_struct = serialized_string.c_str();
+                frame.header.data_length = htonl(static_cast<uint32_t>(serialized_string.size()));
+                LDEBUG(UBusMaster) << "Data length : " << ntohl(frame.header.data_length) << std::endl;
+                frame.data = new uint8_t[ntohl(frame.header.data_length)];
+                strncpy(reinterpret_cast<char *>(frame.data), char_struct, serialized_string.size());
+                int32_t ret;
+                if ((ret = writen(fd, static_cast<void *>(&frame.header),
+                                    sizeof(FrameHeader))) < 0) {
+                    LINFO(UBusMaster) << "Write returned " << ret << std::endl;
+                }
+                if ((ret = writen(fd, static_cast<void *>(frame.data),
+                                    ntohl(frame.header.data_length))) < 0) {
+                    LINFO(UBusRuntime) << "Write returned " << ret << std::endl;
+                }
+                delete[] frame.data;
             } catch (nlohmann::json::exception &e) {
                 LERROR(UBusMaster) << "Exception in json : " << e.what() << std::endl;
             }

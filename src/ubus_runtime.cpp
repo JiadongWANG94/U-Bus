@@ -6,10 +6,13 @@
 
 #include <unistd.h>
 #include <poll.h>
+#include <errno.h>
 #include "nlohmann/json.hpp"
 
 #include "helpers.hpp"
 #include "frame.hpp"
+#include "version.hpp"
+#include "definitions.hpp"
 
 bool UBusRuntime::init(const std::string &name, const std::string &ip, uint32_t port) {
     name_ = name;
@@ -55,13 +58,14 @@ bool UBusRuntime::init(const std::string &name, const std::string &ip, uint32_t 
     bzero(&control_addr, sizeof(control_addr));
     control_addr.sin_family = AF_INET;
     control_addr.sin_port = htons(port);
-    if (inet_pton(AF_INET, ip.c_str(), &control_addr.sin_addr) <= 0) {
-        LERROR(UBusRuntime) << "Failed to convert ip address " << ip << std::endl;
+    int32_t ret;
+    if ((ret = inet_pton(AF_INET, ip.c_str(), &control_addr.sin_addr)) <= 0) {
+        LERROR(UBusRuntime) << "Failed to convert ip address " << ip << ", ret is " << ret << std::endl;
         return false;
     }
 
-    if (connect(control_sock_, reinterpret_cast<sockaddr *>(&control_addr), sizeof(control_addr)) != 0) {
-        LERROR(UBusRuntime) << "Failed to connect to master" << std::endl;
+    if ((ret = connect(control_sock_, reinterpret_cast<sockaddr *>(&control_addr), sizeof(control_addr))) != 0) {
+        LERROR(UBusRuntime) << "Failed to connect to master, ret is " << ret << ", err " << strerror(errno) << std::endl;
         return false;
     }
 
@@ -71,13 +75,14 @@ bool UBusRuntime::init(const std::string &name, const std::string &ip, uint32_t 
     json_struct["name"] = name;
     json_struct["listening_ip"] = listening_ip;
     json_struct["listening_port"] = listening_port;
+    json_struct["api_version"] = STRING(UBUS_API_VERSION_MAJOR) "." STRING(UBUS_APT_VERSION_MINOR);
+    LINFO(UBusRuntime) << "UBUS API version " << json_struct["api_version"].get<std::string>() << std::endl;
     std::string serialized_string = json_struct.dump();
     const char *char_struct = serialized_string.c_str();
     frame.header.data_length = htonl(static_cast<uint32_t>(serialized_string.size()));
     LDEBUG(UBusRuntime) << "Data length : " << ntohl(frame.header.data_length) << std::endl;
     frame.data = new uint8_t[ntohl(frame.header.data_length)];
     strncpy(reinterpret_cast<char *>(frame.data), char_struct, serialized_string.size());
-    int32_t ret;
     if ((ret = writen(control_sock_, static_cast<void *>(&frame.header), sizeof(FrameHeader))) < 0) {
         LDEBUG(UBusRuntime) << "Write returned " << ret << std::endl;
     }

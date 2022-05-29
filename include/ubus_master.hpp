@@ -20,6 +20,9 @@
 #include <shared_mutex>
 #include <unordered_map>
 
+#include "version.hpp"
+#include "definitions.hpp"
+
 #include "nlohmann/json.hpp"
 
 #include "log.hpp"
@@ -75,6 +78,7 @@ class UBusMaster {
 
  private:
     const uint32_t keep_alive_interval_ = 1000;
+    const std::string api_version_ = STRING(UBUS_API_VERSION_MAJOR) "." STRING(UBUS_APT_VERSION_MINOR);
 
  private:
     void check_participant_pulse();

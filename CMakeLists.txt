@@ -3,6 +3,8 @@ project(ubus)
 
 set(CMAKE_CXX_STANDARD 17)
 
+find_package(Threads REQUIRED)
+
 add_subdirectory(3rdparty)
 
 add_subdirectory(nimportequoi)
@@ -11,7 +13,7 @@ add_subdirectory(nimportequoi)
 
 file(GLOB_RECURSE src_list ${CMAKE_CURRENT_LIST_DIR}/src/*.cpp)
 
-add_library(ubus SHARED ${src_list})
+add_library(ubus STATIC ${src_list})
 
 target_include_directories(ubus
     PUBLIC
@@ -22,6 +24,7 @@ target_link_libraries(ubus
     PUBLIC
         common
         modern-json
+        Threads::Threads
 )
 
 add_executable(ubus-master main.cpp)

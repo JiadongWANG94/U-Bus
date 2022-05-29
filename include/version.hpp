@@ -1,4 +1,4 @@
 #pragma once
 
 #define UBUS_API_VERSION_MAJOR 1
-#define UBUS_APT_VERSION_MINOR 0
+#define UBUS_APT_VERSION_MINOR 1
