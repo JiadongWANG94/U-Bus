@@ -15,6 +15,7 @@
 #include <string>
 #include <memory>
 #include <queue>
+#include <atomic>
 #include <functional>
 #include <mutex>
 #include <shared_mutex>
@@ -30,9 +31,12 @@
 class UBusMaster {
  public:
     bool init(const std::string &ip, uint32_t port);
+    bool is_initiated() { return this->initiated_.load(); }
     bool run();
 
  private:
+    std::atomic<bool> initiated_{false};
+
     struct UBusParticipantInfo {
         std::string name;
         std::string ip;

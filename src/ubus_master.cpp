@@ -14,6 +14,10 @@
 #include "shared_lock_guard.hpp"
 
 bool UBusMaster::init(const std::string &ip, uint32_t port) {
+    if (this->initiated_.load()) {
+        LWARN(UBusMaster) << "Already initiated" << std::endl;
+        return false;
+    }
     if ((control_sock_ = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         LERROR(UBusMaster) << "Failed to create socket" << std::endl;
         control_sock_ = 0;
@@ -31,7 +35,7 @@ bool UBusMaster::init(const std::string &ip, uint32_t port) {
         LERROR(UBusMaster) << "Failed to convert bind to ip " << ip << " port " << port << std::endl;
         return false;
     }
-
+    this->initiated_.store(true);
     return true;
 }
 

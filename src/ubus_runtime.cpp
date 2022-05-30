@@ -15,6 +15,11 @@
 #include "definitions.hpp"
 
 bool UBusRuntime::init(const std::string &name, const std::string &ip, uint32_t port) {
+    if (this->initiated_.load()) {
+        LWARN(UBusMaster) << "Already initiated" << std::endl;
+        return false;
+    }
+
     name_ = name;
 
     // init listening_sock
@@ -100,6 +105,7 @@ bool UBusRuntime::init(const std::string &name, const std::string &ip, uint32_t 
         size_t read_size = readn(control_sock_, &header_buff, sizeof(FrameHeader));
         if (read_size < sizeof(FrameHeader)) {
             LERROR(UBusRuntime) << "Failed to read header" << std::endl;
+            return false;
         } else {
             FrameHeader *header = reinterpret_cast<FrameHeader *>(header_buff);
             header->data_length = ntohl(header->data_length);
@@ -108,6 +114,7 @@ bool UBusRuntime::init(const std::string &name, const std::string &ip, uint32_t 
             read_size = readn(control_sock_, &content_buff, header->data_length);
             if (read_size < header->data_length) {
                 LERROR(UBusRuntime) << "Failed to read content" << std::endl;
+                return false;
             }
             std::string content(content_buff, header->data_length);
             try {
@@ -121,9 +128,11 @@ bool UBusRuntime::init(const std::string &name, const std::string &ip, uint32_t 
                     }
                 } else {
                     LERROR(UBusRuntime) << "Invalid response from master" << std::endl;
+                    return false;
                 }
             } catch (nlohmann::json::exception &e) {
                 LERROR(UBusRuntime) << "Exception in json : " << e.what() << std::endl;
+                return false;
             }
         }
     }
@@ -136,6 +145,8 @@ bool UBusRuntime::init(const std::string &name, const std::string &ip, uint32_t 
 
     event_worker_ = std::make_shared<std::thread>(&UBusRuntime::process_event_message, this);
     event_worker_->detach();
+
+    this->initiated_.store(true);
     return true;
 }
 

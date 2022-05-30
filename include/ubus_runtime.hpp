@@ -48,7 +48,10 @@ class UBusRuntime {
     template <typename RequestT, typename ResponseT>
     bool call_method(const std::string &method, const RequestT &request, ResponseT *response);
 
+    bool is_initiated() { return this->initiated_.load(); }
+
  private:
+    std::atomic<bool> initiated_{false};
     int32_t control_sock_ = 0;
     int32_t listening_sock_ = 0;
     std::shared_ptr<std::thread> listening_worker_;
