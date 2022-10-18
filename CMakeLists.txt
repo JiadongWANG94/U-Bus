@@ -109,5 +109,4 @@ target_include_directories(test-clock-server
         test
 )
 
-# add_executable(test-memory-order test/test_memory_order.cpp)
-# add_subdirectory(test)
+add_subdirectory(app)

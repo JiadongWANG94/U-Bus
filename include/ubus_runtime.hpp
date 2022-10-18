@@ -50,7 +50,7 @@ class UBusRuntime {
 
     bool is_initiated() { return this->initiated_.load(); }
 
- private:
+ protected:
     std::atomic<bool> initiated_{false};
     int32_t control_sock_ = 0;
     int32_t listening_sock_ = 0;

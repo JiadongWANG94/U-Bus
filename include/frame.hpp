@@ -16,7 +16,8 @@ enum FrameType : uint8_t {
     FRAME_METHOD_PROVIDE,
     FRAME_METHOD_QUERY,
     FRAME_METHOD_CALL,
-    FRAME_METHOD_RESPONSE
+    FRAME_METHOD_RESPONSE,
+    FRAME_DEBUG
 };
 
 struct FrameHeader {

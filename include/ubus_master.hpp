@@ -90,4 +90,5 @@ class UBusMaster {
     void listening_control_message();
     void accept_new_connection();
     void keep_alive_worker();
+    void process_debug_message(const std::string &input, std::string *output);
 };

@@ -339,6 +339,26 @@ void UBusMaster::process_control_message() {
                                 delete[] frame.data;
                             }
                             break;
+                        case FRAME_DEBUG: {
+                            std::string response;
+                            process_debug_message(content, &response);
+                            Frame frame;
+                            frame.header.message_type = FRAME_DEBUG;
+                            const char *char_struct = response.c_str();
+                            frame.header.data_length = htonl(static_cast<uint32_t>(response.size()));
+                            frame.data = new uint8_t[ntohl(frame.header.data_length)];
+                            strncpy(reinterpret_cast<char *>(frame.data), char_struct, response.size());
+                            int32_t ret;
+                            if ((ret = writen(poll_fd_list[i].fd, static_cast<void *>(&frame.header),
+                                              sizeof(FrameHeader))) < 0) {
+                                LINFO(UBusMaster) << "Write returned " << ret << std::endl;
+                            }
+                            if ((ret = writen(poll_fd_list[i].fd, static_cast<void *>(frame.data),
+                                              ntohl(frame.header.data_length))) < 0) {
+                                LINFO(UBusMaster) << "Write returned " << ret << std::endl;
+                            }
+                            delete[] frame.data;
+                        } break;
                         default:
                             break;
                     }
@@ -453,4 +473,57 @@ void UBusMaster::keep_alive_worker() {
         }
         sleep(1);
     }
+}
+
+void UBusMaster::process_debug_message(const std::string &input, std::string *output) {
+    if (output == nullptr) {
+        return;
+    }
+
+    nlohmann::json query_struct;
+    try {
+        query_struct = nlohmann::json::parse(input);
+    } catch (nlohmann::json::exception &e) {
+        LERROR(UBusDebugger) << "Exception in json : " << e.what() << std::endl;
+    }
+
+    if (!query_struct.contains("debug_type")) {
+        return;
+    }
+    if (query_struct.at("debug_type") == "list_event") {
+        nlohmann::json response_struct;
+        response_struct["response"] = "OK";
+        nlohmann::json event_list = nlohmann::json::array();
+        std::lock_guard<std::mutex> lock(this->event_list_mtx_);
+        for (auto &event : this->event_list_) {
+            nlohmann::json event_struct;
+            event_struct["name"] = event.second.name;
+            event_struct["type"] = event.second.type;
+            event_struct["publisher"] = event.second.publisher->name;
+            event_list.push_back(event_struct);
+        }
+        response_struct["response_data"] = event_list;
+        *output = response_struct.dump();
+        return;
+    }
+    if (query_struct.at("debug_type") == "list_participant") {
+        nlohmann::json response_struct;
+        response_struct["response"] = "OK";
+        nlohmann::json participant_list = nlohmann::json::array();
+        ReadingSharedLockGuard lock_shared(this->participant_info_mtx_);
+        for (auto &participant : this->participant_list_) {
+            nlohmann::json participant_struct;
+            participant_struct["name"] = participant.second->name;
+            participant_struct["ip"] = participant.second->ip;
+            participant_struct["port"] = participant.second->port;
+            participant_struct["listening_ip"] = participant.second->listening_ip;
+            participant_struct["listening_port"] = participant.second->listening_port;
+            participant_list.push_back(participant_struct);
+        }
+        response_struct["response_data"] = participant_list;
+        *output = response_struct.dump();
+        return;
+    }
+
+    return;
 }

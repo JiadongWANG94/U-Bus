@@ -33,7 +33,7 @@ bool UBusRuntime::init(const std::string &name, const std::string &ip, uint32_t 
     listening_addr.sin_family = AF_INET;
     // let the system choose
     listening_addr.sin_port = htons(0);
-    if (inet_pton(AF_INET, std::string("127.0.0.1").c_str(), &listening_addr.sin_addr) <= 0) {
+    if (inet_pton(AF_INET, std::string("0.0.0.0").c_str(), &listening_addr.sin_addr) <= 0) {
         LERROR(UBusMaster) << "Failed to convert ip address " << ip << std::endl;
         return false;
     }
