@@ -225,15 +225,23 @@ bool UBusRuntime::publish_event(const std::string &topic, const EventT &event) {
     frame.header.data_length = htonl(static_cast<uint32_t>(serialized_string.size()));
     frame.data = new uint8_t[serialized_string.size()];
     strncpy(reinterpret_cast<char *>(frame.data), char_struct, serialized_string.size());
+    std::vector<std::string> dead_subscribers;
     for (auto &p : pub_list_.at(topic).client_socket_map) {
         LINFO(UBusRuntime) << "Sending event to subscriber " << p.first;
         int32_t ret;
         if ((ret = writen(p.second, static_cast<void *>(&frame.header), sizeof(FrameHeader))) < 0) {
             LDEBUG(UBusRuntime) << "Write returned " << ret;
-        }
-        if ((ret = writen(p.second, static_cast<void *>(frame.data), serialized_string.size())) < 0) {
+        } else if ((ret = writen(p.second, static_cast<void *>(frame.data), serialized_string.size())) < 0) {
             LDEBUG(UBusRuntime) << "Write returned " << ret;
         }
+        if (ret < 0 && errno == EPIPE) {
+            LINFO(UBusRuntime) << "EPIPE returned, socket is closed by peer, will remove from subscriber list: "
+                               << p.first;
+            dead_subscribers.push_back(p.first);
+        }
+    }
+    for (auto &p : dead_subscribers) {
+        pub_list_.at(topic).client_socket_map.erase(p);
     }
     return true;
 }

@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <poll.h>
 #include <errno.h>
+#include <signal.h>
 #include "nlohmann/json.hpp"
 
 #include "helpers.hpp"
@@ -14,7 +15,10 @@
 #include "version.hpp"
 #include "definitions.hpp"
 
+void sigpipe_handler(int input) { LWARN(UBusRuntime) << "SIGPIPE Caught."; }
+
 bool UBusRuntime::init(const std::string &name, const std::string &ip, uint32_t port) {
+    signal(SIGPIPE, sigpipe_handler);
     if (this->initiated_.load()) {
         LWARN(UBusMaster) << "Already initiated";
         return false;
