@@ -8,12 +8,13 @@
 
 int main() {
     InitFailureHandle();
+    g_log_manager.SetLogLevel(0);
     UBusRuntime runtime;
     runtime.init("test_participant_sub_2", "127.0.0.1", 5101);
     runtime.subscribe_event("test_topic",
                             std::function<void(const TestMessage1 &)>([](const TestMessage1 &event) -> void {
-                                LOG(test_subscriber) << "Callback called" << std::endl;
-                                LOG(test_subscriber) << "Received event data: " << event.data << std::endl;
+                                LINFO(test_subscriber) << "Callback called";
+                                LINFO(test_subscriber) << "Received event data: " << event.data;
                             }));
 
     sleep(30);

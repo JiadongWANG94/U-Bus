@@ -107,7 +107,7 @@ class UBusRuntime {
         MethodCallbackHolder(std::function<void(const RequestT &, ResponseT *)> callback) : callback_(callback) {}
         virtual void operator()(const std::string &request, std::string *response) {
             if (response == nullptr) {
-                LERROR(UBusRuntime) << "Error nullptr" << std::endl;
+                LERROR(UBusRuntime) << "Error nullptr";
                 return;
             }
             RequestT req;
@@ -149,54 +149,53 @@ bool UBusRuntime::advertise_event(const std::string &topic) {
     std::string serialized_string = json_struct.dump();
     const char *char_struct = serialized_string.c_str();
     frame.header.data_length = htonl(static_cast<uint32_t>(serialized_string.size()));
-    LDEBUG(UBusRuntime) << "Data length : " << ntohl(frame.header.data_length) << std::endl;
+    LDEBUG(UBusRuntime) << "Data length : " << ntohl(frame.header.data_length);
     frame.data = new uint8_t[ntohl(frame.header.data_length)];
     strncpy(reinterpret_cast<char *>(frame.data), char_struct, ntohl(frame.header.data_length));
     int32_t ret;
     if ((ret = writen(control_sock_, static_cast<void *>(&frame.header), sizeof(FrameHeader))) < 0) {
-        LINFO(UBusRuntime) << "Write returned " << ret << std::endl;
+        LINFO(UBusRuntime) << "Write returned " << ret;
     }
     if ((ret = writen(control_sock_, static_cast<void *>(frame.data), ntohl(frame.header.data_length))) < 0) {
-        LINFO(UBusRuntime) << "Write returned " << ret << std::endl;
+        LINFO(UBusRuntime) << "Write returned " << ret;
     }
     LDEBUG(UBusRuntime) << "Debug content "
-                        << std::string(reinterpret_cast<char *>(frame.data), ntohl(frame.header.data_length))
-                        << std::endl;
+                        << std::string(reinterpret_cast<char *>(frame.data), ntohl(frame.header.data_length));
 
     {
         char header_buff[sizeof(FrameHeader)];
         size_t read_size = readn(control_sock_, &header_buff, sizeof(FrameHeader));
         if (read_size < sizeof(FrameHeader)) {
-            LERROR(UBusRuntime) << "Failed to read header" << std::endl;
+            LERROR(UBusRuntime) << "Failed to read header";
         } else {
             FrameHeader *header = reinterpret_cast<FrameHeader *>(header_buff);
             header->data_length = ntohl(header->data_length);
-            LDEBUG(UBusRuntime) << "Size of data to read : " << header->data_length << std::endl;
+            LDEBUG(UBusRuntime) << "Size of data to read : " << header->data_length;
             char content_buff[header->data_length];
             read_size = readn(control_sock_, &content_buff, header->data_length);
             if (read_size < header->data_length) {
-                LERROR(UBusRuntime) << "Failed to read content" << std::endl;
+                LERROR(UBusRuntime) << "Failed to read content";
             }
             std::string content(content_buff, header->data_length);
             try {
                 nlohmann::json response_json = nlohmann::json::parse(content);
                 if (response_json.contains("response")) {
                     if (response_json["response"] == "OK") {
-                        LINFO(UBusRuntime) << "Topic registered to master" << std::endl;
+                        LINFO(UBusRuntime) << "Topic registered to master";
                         PubEventInfo event_info;
                         event_info.topic = topic;
                         event_info.type = EventT::id;
                         pub_list_[topic] = event_info;
                     } else {
-                        LERROR(UBusRuntime) << "Error from master : " << response_json["response"] << std::endl;
+                        LERROR(UBusRuntime) << "Error from master : " << std::string(response_json["response"]);
                         return false;
                     }
                 } else {
-                    LERROR(UBusRuntime) << "Invalid response from master" << std::endl;
+                    LERROR(UBusRuntime) << "Invalid response from master";
                     return false;
                 }
             } catch (nlohmann::json::exception &e) {
-                LERROR(UBusRuntime) << "Exception in json : " << e.what() << std::endl;
+                LERROR(UBusRuntime) << "Exception in json : " << e.what();
                 return false;
             }
         }
@@ -207,15 +206,15 @@ bool UBusRuntime::advertise_event(const std::string &topic) {
 template <typename EventT>
 bool UBusRuntime::publish_event(const std::string &topic, const EventT &event) {
     if (pub_list_.find(topic) == pub_list_.end()) {
-        LERROR(UBusRuntime) << "Error topic unregistered" << std::endl;
+        LERROR(UBusRuntime) << "Error topic unregistered";
         return false;
     }
     if (EventT::id != pub_list_.at(topic).type) {
-        LERROR(UBusRuntime) << "Error wrong event type" << std::endl;
+        LERROR(UBusRuntime) << "Error wrong event type";
         return false;
     }
     if (pub_list_.at(topic).client_socket_map.size() == 0) {
-        LINFO(UBusRuntime) << "No subscribers" << std::endl;
+        LINFO(UBusRuntime) << "No subscribers";
         return true;
     }
     Frame frame;
@@ -227,13 +226,13 @@ bool UBusRuntime::publish_event(const std::string &topic, const EventT &event) {
     frame.data = new uint8_t[serialized_string.size()];
     strncpy(reinterpret_cast<char *>(frame.data), char_struct, serialized_string.size());
     for (auto &p : pub_list_.at(topic).client_socket_map) {
-        LINFO(UBusRuntime) << "Sending event to subscriber " << p.first << std::endl;
+        LINFO(UBusRuntime) << "Sending event to subscriber " << p.first;
         int32_t ret;
         if ((ret = writen(p.second, static_cast<void *>(&frame.header), sizeof(FrameHeader))) < 0) {
-            LDEBUG(UBusRuntime) << "Write returned " << ret << std::endl;
+            LDEBUG(UBusRuntime) << "Write returned " << ret;
         }
         if ((ret = writen(p.second, static_cast<void *>(frame.data), serialized_string.size())) < 0) {
-            LDEBUG(UBusRuntime) << "Write returned " << ret << std::endl;
+            LDEBUG(UBusRuntime) << "Write returned " << ret;
         }
     }
     return true;
@@ -256,40 +255,40 @@ bool UBusRuntime::subscribe_event(const std::string &topic, std::function<void(c
     strncpy(reinterpret_cast<char *>(frame.data), char_struct, serialized_string.size());
     int32_t ret;
     if ((ret = writen(control_sock_, static_cast<void *>(&frame.header), sizeof(FrameHeader))) < 0) {
-        LINFO(UBusRuntime) << "Write returned " << ret << std::endl;
+        LINFO(UBusRuntime) << "Write returned " << ret;
     }
     if ((ret = writen(control_sock_, static_cast<void *>(frame.data), serialized_string.size())) < 0) {
-        LINFO(UBusRuntime) << "Write returned " << ret << std::endl;
+        LINFO(UBusRuntime) << "Write returned " << ret;
     }
 
     {
         char header_buff[sizeof(FrameHeader)];
         size_t read_size = readn(control_sock_, &header_buff, sizeof(FrameHeader));
         if (read_size < sizeof(FrameHeader)) {
-            LERROR(UBusRuntime) << "Failed to read header" << std::endl;
+            LERROR(UBusRuntime) << "Failed to read header";
         } else {
             FrameHeader *header = reinterpret_cast<FrameHeader *>(header_buff);
             header->data_length = ntohl(header->data_length);
-            LDEBUG(UBusRuntime) << "Size of data to read : " << header->data_length << std::endl;
+            LDEBUG(UBusRuntime) << "Size of data to read : " << header->data_length;
             char content_buff[header->data_length];
             read_size = readn(control_sock_, &content_buff, header->data_length);
             if (read_size < header->data_length) {
-                LERROR(UBusRuntime) << "Failed to read content" << std::endl;
+                LERROR(UBusRuntime) << "Failed to read content";
             }
             std::string content(content_buff, header->data_length);
             try {
                 nlohmann::json response_json = nlohmann::json::parse(content);
                 if (response_json.contains("response")) {
                     if (response_json["response"] == "OK") {
-                        LINFO(UBusRuntime) << "Topic subscription registered to master" << std::endl;
+                        LINFO(UBusRuntime) << "Topic subscription registered to master";
                         if (!response_json.contains("publisher_ip") || !response_json.contains("publisher_port") ||
                             !response_json.contains("publisher_name")) {
-                            LERROR(UBusRuntime) << "Invalid reponse from master for subscription" << std::endl;
+                            LERROR(UBusRuntime) << "Invalid reponse from master for subscription";
                             return false;
                         }
                         int32_t sub_socket = 0;
                         if ((sub_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-                            LERROR(UBusRuntime) << "Failed to create socket" << std::endl;
+                            LERROR(UBusRuntime) << "Failed to create socket";
                             control_sock_ = 0;
                             return false;
                         }
@@ -300,14 +299,14 @@ bool UBusRuntime::subscribe_event(const std::string &topic, std::function<void(c
                         if (inet_pton(AF_INET, response_json.at("publisher_ip").get<std::string>().c_str(),
                                       &sub_sockaddr.sin_addr) <= 0) {
                             LERROR(UBusRuntime)
-                                << "Failed to convert ip address " << response_json.at("publisher_ip") << std::endl;
+                                << "Failed to convert ip address " << std::string(response_json.at("publisher_ip"));
                             return false;
                         }
 
                         int32_t ret;
                         if ((ret = connect(sub_socket, reinterpret_cast<sockaddr *>(&sub_sockaddr),
                                            sizeof(sub_sockaddr))) != 0) {
-                            LERROR(UBusRuntime) << "Failed to connect to publisher, ret " << ret << std::endl;
+                            LERROR(UBusRuntime) << "Failed to connect to publisher, ret " << ret;
                             return false;
                         }
 
@@ -320,63 +319,62 @@ bool UBusRuntime::subscribe_event(const std::string &topic, std::function<void(c
 
                         // send subscribe message to publisher
                         if ((ret = writen(sub_socket, static_cast<void *>(&frame.header), sizeof(FrameHeader))) < 0) {
-                            LINFO(UBusRuntime) << "Write returned " << ret << std::endl;
+                            LINFO(UBusRuntime) << "Write returned " << ret;
                         }
                         if ((ret = writen(sub_socket, static_cast<void *>(frame.data),
                                           ntohl(frame.header.data_length))) < 0) {
-                            LINFO(UBusRuntime) << "Write returned " << ret << std::endl;
+                            LINFO(UBusRuntime) << "Write returned " << ret;
                         }
 
                         {
                             char header_buff[sizeof(FrameHeader)];
                             size_t read_size = readn(sub_socket, &header_buff, sizeof(FrameHeader));
                             if (read_size < sizeof(FrameHeader)) {
-                                LERROR(UBusRuntime) << "Failed to read header" << std::endl;
+                                LERROR(UBusRuntime) << "Failed to read header";
                             } else {
                                 FrameHeader *header = reinterpret_cast<FrameHeader *>(header_buff);
                                 header->data_length = ntohl(header->data_length);
-                                LDEBUG(UBusRuntime) << "Size of data to read : " << header->data_length << std::endl;
+                                LDEBUG(UBusRuntime) << "Size of data to read : " << header->data_length;
                                 char content_buff[header->data_length];
                                 read_size = readn(sub_socket, &content_buff, header->data_length);
                                 if (read_size < header->data_length) {
-                                    LDEBUG(UBusRuntime) << "Failed to read content" << std::endl;
+                                    LDEBUG(UBusRuntime) << "Failed to read content";
                                 }
                                 std::string content(content_buff, header->data_length);
                                 try {
                                     nlohmann::json response_json = nlohmann::json::parse(content);
                                     if (response_json.contains("response")) {
                                         if (response_json["response"] == "OK") {
-                                            LINFO(UBusRuntime) << "Registered with publisher" << std::endl;
+                                            LINFO(UBusRuntime) << "Registered with publisher";
                                             sub_list_[topic] = event_info;
                                             unprocessed_new_sub_events_.push(topic);
                                             return true;
                                         } else {
                                             LERROR(UBusRuntime) << "Failed to connect to "
-                                                                   "publisher"
-                                                                << std::endl;
+                                                                   "publisher";
                                             return false;
                                         }
                                     } else {
-                                        LERROR(UBusRuntime) << "Failed to connect to publisher" << std::endl;
+                                        LERROR(UBusRuntime) << "Failed to connect to publisher";
                                         return false;
                                     }
                                 } catch (nlohmann::json::exception &e) {
-                                    LERROR(UBusRuntime) << "Exception in json : " << e.what() << std::endl;
+                                    LERROR(UBusRuntime) << "Exception in json : " << e.what();
                                     return false;
                                 }
                             }
                         }
 
                     } else {
-                        LERROR(UBusRuntime) << "Error from master : " << response_json["response"] << std::endl;
+                        LERROR(UBusRuntime) << "Error from master : " << std::string(response_json["response"]);
                         return false;
                     }
                 } else {
-                    LERROR(UBusRuntime) << "Invalid response from master" << std::endl;
+                    LERROR(UBusRuntime) << "Invalid response from master";
                     return false;
                 }
             } catch (nlohmann::json::exception &e) {
-                LERROR(UBusRuntime) << "Exception in json : " << e.what() << std::endl;
+                LERROR(UBusRuntime) << "Exception in json : " << e.what();
                 return false;
             }
         }
@@ -396,40 +394,39 @@ bool UBusRuntime::provide_method(const std::string &method,
     std::string serialized_string = json_struct.dump();
     const char *char_struct = serialized_string.c_str();
     frame.header.data_length = htonl(static_cast<uint32_t>(serialized_string.size()));
-    LDEBUG(UBusRuntime) << "Data length : " << ntohl(frame.header.data_length) << std::endl;
+    LDEBUG(UBusRuntime) << "Data length : " << ntohl(frame.header.data_length);
     frame.data = new uint8_t[ntohl(frame.header.data_length)];
     strncpy(reinterpret_cast<char *>(frame.data), char_struct, serialized_string.size());
     int32_t ret;
     if ((ret = writen(control_sock_, static_cast<void *>(&frame.header), sizeof(FrameHeader))) < 0) {
-        LINFO(UBusRuntime) << "Write returned " << ret << std::endl;
+        LINFO(UBusRuntime) << "Write returned " << ret;
     }
     if ((ret = writen(control_sock_, static_cast<void *>(frame.data), ntohl(frame.header.data_length))) < 0) {
-        LINFO(UBusRuntime) << "Write returned " << ret << std::endl;
+        LINFO(UBusRuntime) << "Write returned " << ret;
     }
     LDEBUG(UBusRuntime) << "Debug content "
-                        << std::string(reinterpret_cast<char *>(frame.data), ntohl(frame.header.data_length))
-                        << std::endl;
+                        << std::string(reinterpret_cast<char *>(frame.data), ntohl(frame.header.data_length));
 
     {
         char header_buff[sizeof(FrameHeader)];
         size_t read_size = readn(control_sock_, &header_buff, sizeof(FrameHeader));
         if (read_size < sizeof(FrameHeader)) {
-            LERROR(UBusRuntime) << "Failed to read header" << std::endl;
+            LERROR(UBusRuntime) << "Failed to read header";
         } else {
             FrameHeader *header = reinterpret_cast<FrameHeader *>(header_buff);
             header->data_length = ntohl(header->data_length);
-            LDEBUG(UBusRuntime) << "Size of data to read : " << header->data_length << std::endl;
+            LDEBUG(UBusRuntime) << "Size of data to read : " << header->data_length;
             char content_buff[header->data_length];
             read_size = readn(control_sock_, &content_buff, header->data_length);
             if (read_size < header->data_length) {
-                LERROR(UBusRuntime) << "Failed to read content" << std::endl;
+                LERROR(UBusRuntime) << "Failed to read content";
             }
             std::string content(content_buff, header->data_length);
             try {
                 nlohmann::json response_json = nlohmann::json::parse(content);
                 if (response_json.contains("response")) {
                     if (response_json["response"] == "OK") {
-                        LINFO(UBusRuntime) << "Method registered to master" << std::endl;
+                        LINFO(UBusRuntime) << "Method registered to master";
                         MethodInfo method_info;
                         method_info.method = method;
                         method_info.request_type = RequestT::id;
@@ -437,15 +434,15 @@ bool UBusRuntime::provide_method(const std::string &method,
                         method_info.callback = std::make_shared<MethodCallbackHolder<RequestT, ResponseT> >(callback);
                         method_list_[method] = method_info;
                     } else {
-                        LERROR(UBusRuntime) << "Error from master : " << response_json["response"] << std::endl;
+                        LERROR(UBusRuntime) << "Error from master : " << std::string(response_json["response"]);
                         return false;
                     }
                 } else {
-                    LERROR(UBusRuntime) << "Invalid response from master" << std::endl;
+                    LERROR(UBusRuntime) << "Invalid response from master";
                     return false;
                 }
             } catch (nlohmann::json::exception &e) {
-                LERROR(UBusRuntime) << "Exception in json : " << e.what() << std::endl;
+                LERROR(UBusRuntime) << "Exception in json : " << e.what();
                 return false;
             }
         }
@@ -472,10 +469,10 @@ bool UBusRuntime::call_method(const std::string &method, const RequestT &request
     strncpy(reinterpret_cast<char *>(frame.data), char_struct, serialized_string.size());
     int32_t ret;
     if ((ret = writen(control_sock_, static_cast<void *>(&frame.header), sizeof(FrameHeader))) < 0) {
-        LINFO(UBusRuntime) << "Write returned " << ret << std::endl;
+        LINFO(UBusRuntime) << "Write returned " << ret;
     }
     if ((ret = writen(control_sock_, static_cast<void *>(frame.data), ntohl(frame.header.data_length))) < 0) {
-        LINFO(UBusRuntime) << "Write returned " << ret << std::endl;
+        LINFO(UBusRuntime) << "Write returned " << ret;
     }
 
     {
@@ -483,38 +480,38 @@ bool UBusRuntime::call_method(const std::string &method, const RequestT &request
         char header_buff[sizeof(FrameHeader)];
         size_t read_size = readn(control_sock_, &header_buff, sizeof(FrameHeader));
         if (read_size < sizeof(FrameHeader)) {
-            LERROR(UBusRuntime) << "Failed to read header" << std::endl;
+            LERROR(UBusRuntime) << "Failed to read header";
             return false;
         }
         FrameHeader *header = reinterpret_cast<FrameHeader *>(header_buff);
         header->data_length = ntohl(header->data_length);
-        LDEBUG(UBusRuntime) << "Size of data to read : " << header->data_length << std::endl;
+        LDEBUG(UBusRuntime) << "Size of data to read : " << header->data_length;
         char content_buff[header->data_length];
         read_size = readn(control_sock_, &content_buff, header->data_length);
         if (read_size < header->data_length) {
-            LERROR(UBusRuntime) << "Failed to read content" << std::endl;
+            LERROR(UBusRuntime) << "Failed to read content";
         }
         std::string content(content_buff, header->data_length);
 
         try {
             nlohmann::json response_json = nlohmann::json::parse(content);
             if (!response_json.contains("response")) {
-                LERROR(UBusRuntime) << "Invalid response from master" << std::endl;
+                LERROR(UBusRuntime) << "Invalid response from master";
                 return false;
             }
             if (response_json["response"] != "OK") {
-                LERROR(UBusRuntime) << "Master returned " << response_json["response"] << std::endl;
+                LERROR(UBusRuntime) << "Master returned " << std::string(response_json["response"]);
                 return false;
             }
-            LINFO(UBusRuntime) << "Method request is validated by master." << std::endl;
+            LINFO(UBusRuntime) << "Method request is validated by master.";
             if (!response_json.contains("provider_ip") || !response_json.contains("provider_port") ||
                 !response_json.contains("provider_name")) {
-                LERROR(UBusRuntime) << "Invalid reponse from master for method request" << std::endl;
+                LERROR(UBusRuntime) << "Invalid reponse from master for method request";
                 return false;
             }
             int32_t req_socket = 0;
             if ((req_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-                LERROR(UBusRuntime) << "Failed to create socket" << std::endl;
+                LERROR(UBusRuntime) << "Failed to create socket";
                 control_sock_ = 0;
                 return false;
             }
@@ -524,14 +521,14 @@ bool UBusRuntime::call_method(const std::string &method, const RequestT &request
             req_sockaddr.sin_port = htons(response_json.at("provider_port").get<int32_t>());
             if (inet_pton(AF_INET, response_json.at("provider_ip").get<std::string>().c_str(),
                           &req_sockaddr.sin_addr) <= 0) {
-                LERROR(UBusRuntime) << "Failed to convert ip address " << response_json.at("provider_ip") << std::endl;
+                LERROR(UBusRuntime) << "Failed to convert ip address " << std::string(response_json.at("provider_ip"));
                 return false;
             }
 
             int32_t ret_connect;
             if ((ret_connect =
                      connect(req_socket, reinterpret_cast<sockaddr *>(&req_sockaddr), sizeof(req_sockaddr))) != 0) {
-                LERROR(UBusRuntime) << "Failed to connect to method provider, ret " << ret_connect << std::endl;
+                LERROR(UBusRuntime) << "Failed to connect to method provider, ret " << ret_connect;
                 return false;
             }
 
@@ -553,11 +550,11 @@ bool UBusRuntime::call_method(const std::string &method, const RequestT &request
 
             int32_t ret;
             if ((ret = writen(req_socket, static_cast<void *>(&req_frame.header), sizeof(FrameHeader))) < 0) {
-                LDEBUG(UBusRuntime) << "Write returned " << ret << std::endl;
+                LDEBUG(UBusRuntime) << "Write returned " << ret;
             }
             if ((ret = writen(req_socket, static_cast<void *>(req_frame.data), ntohl(req_frame.header.data_length))) <
                 0) {
-                LDEBUG(UBusRuntime) << "Write returned " << ret << std::endl;
+                LDEBUG(UBusRuntime) << "Write returned " << ret;
             }
 
             // get response
@@ -565,46 +562,46 @@ bool UBusRuntime::call_method(const std::string &method, const RequestT &request
                 char header_buff[sizeof(FrameHeader)];
                 size_t read_size = readn(req_socket, &header_buff, sizeof(FrameHeader));
                 if (read_size < sizeof(FrameHeader)) {
-                    LERROR(UBusRuntime) << "Failed to read header" << std::endl;
+                    LERROR(UBusRuntime) << "Failed to read header";
                     return false;
                 }
                 FrameHeader *header = reinterpret_cast<FrameHeader *>(header_buff);
                 header->data_length = ntohl(header->data_length);
                 if (header->message_type != FRAME_METHOD_RESPONSE) {
-                    LERROR(UBusRuntime) << "Invalid frame type" << std::endl;
+                    LERROR(UBusRuntime) << "Invalid frame type";
                     return false;
                 }
                 char content_buff[header->data_length];
                 read_size = readn(req_socket, &content_buff, header->data_length);
                 if (read_size < header->data_length) {
-                    LERROR(UBusRuntime) << "Failed to read content" << std::endl;
+                    LERROR(UBusRuntime) << "Failed to read content";
                 }
                 std::string content(content_buff, header->data_length);
                 try {
                     nlohmann::json response_json = nlohmann::json::parse(content);
                     if (response_json.contains("response")) {
                         if (response_json["response"] == "OK") {
-                            LINFO(UBusRuntime) << "Method registered to master" << std::endl;
+                            LINFO(UBusRuntime) << "Method registered to master";
                             if (!response_json.contains("response_data")) {
-                                LERROR(UBusRuntime) << "Invalid frame format" << std::endl;
+                                LERROR(UBusRuntime) << "Invalid frame format";
                                 return false;
                             }
                             response->deserialize(response_json.at("response_data"));
                         } else {
-                            LERROR(UBusRuntime) << "Error request method : " << response_json["response"] << std::endl;
+                            LERROR(UBusRuntime) << "Error request method : " << std::string(response_json["response"]);
                             return false;
                         }
                     } else {
-                        LERROR(UBusRuntime) << "Invalid frame format" << std::endl;
+                        LERROR(UBusRuntime) << "Invalid frame format";
                         return false;
                     }
                 } catch (nlohmann::json::exception &e) {
-                    LERROR(UBusRuntime) << "Exception in json : " << e.what() << std::endl;
+                    LERROR(UBusRuntime) << "Exception in json : " << e.what();
                     return false;
                 }
             }
         } catch (nlohmann::json::exception &e) {
-            LERROR(UBusRuntime) << "Exception in json : " << e.what() << std::endl;
+            LERROR(UBusRuntime) << "Exception in json : " << e.what();
             return false;
         }
     }

@@ -4,11 +4,12 @@
 
 int main() {
     InitFailureHandle();
+    g_log_manager.SetLogLevel(0);
     UBusMaster master;
     if (master.init("0.0.0.0", 5101)) {
-        LOG(main) << "Init success" << std::endl;
+        LINFO(main) << "Init success";
     } else {
-        LOG(main) << "Init failed" << std::endl;
+        LINFO(main) << "Init failed";
     }
     master.run();
     return 0;

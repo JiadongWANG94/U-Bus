@@ -27,6 +27,7 @@ void get_current_time(const NullMsg &in, TimestampMessage *out) {
 
 int main() {
     InitFailureHandle();
+    g_log_manager.SetLogLevel(0);
     UBusRuntime runtime;
     if (!runtime.init("test_clock_server", "127.0.0.1", 5101)) {
         return 1;

@@ -8,6 +8,7 @@
 
 int main() {
     InitFailureHandle();
+    g_log_manager.SetLogLevel(0);
     UBusRuntime runtime;
     runtime.init("test_participant_requester", "127.0.0.1", 5101);
     TestMessage1 request;

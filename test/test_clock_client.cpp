@@ -20,11 +20,12 @@ void print_current_time() {
     gettimeofday(&time_now, nullptr);
 
     LINFO(main) << "Local: Current timestamp is " << localTime->tm_hour << ":" << localTime->tm_min << ":"
-                << localTime->tm_sec << "." << time_now.tv_usec / 1000 % 1000 << std::endl;
+                << localTime->tm_sec << "." << time_now.tv_usec / 1000 % 1000;
 }
 
 int main() {
     InitFailureHandle();
+    g_log_manager.SetLogLevel(0);
     UBusRuntime runtime;
     if (!runtime.init("test_clock_client", "127.0.0.1", 5101)) {
         return 1;
@@ -33,6 +34,6 @@ int main() {
     runtime.call_method<NullMsg, TimestampMessage>("test_method", NullMsg(), &response);
     print_current_time();
     LINFO(main) << "Remote: Current timestamp is " << response.h << ":" << response.m << ":" << response.s << "."
-                << response.ms << std::endl;
+                << response.ms;
     return 0;
 }
