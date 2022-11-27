@@ -524,6 +524,23 @@ void UBusMaster::process_debug_message(const std::string &input, std::string *ou
         *output = response_struct.dump();
         return;
     }
+    if (query_struct.at("debug_type") == "list_method") {
+        nlohmann::json response_struct;
+        response_struct["response"] = "OK";
+        nlohmann::json method_list = nlohmann::json::array();
+        std::lock_guard<std::mutex> lock(this->method_list_mtx_);
+        for (auto &method : this->method_list_) {
+            nlohmann::json method_struct;
+            method_struct["name"] = method.second.name;
+            method_struct["request_type"] = method.second.request_type;
+            method_struct["response_type"] = method.second.response_type;
+            method_struct["provider"] = method.second.provider->name;
+            method_list.push_back(method_struct);
+        }
+        response_struct["response_data"] = method_list;
+        *output = response_struct.dump();
+        return;
+    }
 
     return;
 }

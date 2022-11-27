@@ -2,7 +2,7 @@
 
 script_path=$(dirname $0)
 
-skip_folder=("./nimportequoi" "./3rdparty")
+skip_folder=("./nimportequoi" "./3rdparty" "./build")
 
 declare skip_string
 for folder in ${skip_folder[@]}

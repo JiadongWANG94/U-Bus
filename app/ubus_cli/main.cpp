@@ -91,16 +91,54 @@ class UBusDebugger : public UBusRuntime {
                 }
                 if (event_list.is_array()) {
                     for (auto &event : event_list) {
-                        std::cout << "Event :";
-                        std::cout << "    name      " << event.at("name").get<std::string>();
-                        std::cout << "    type      " << event.at("type").get<uint32_t>();
-                        std::cout << "    publisher " << event.at("publisher").get<std::string>();
-                        std::cout;
+                        std::cout << "Event :" << std::endl;
+                        std::cout << "    name      " << event.at("name").get<std::string>() << std::endl;
+                        std::cout << "    type      " << event.at("type").get<uint32_t>() << std::endl;
+                        std::cout << "    publisher " << event.at("publisher").get<std::string>() << std::endl;
+                        std::cout << std::endl;
                     }
                 }
                 return true;
             }
+        } else {
+            LERROR(UBusDebugger) << "Failed to query debug info from master";
+            return false;
+        }
+        return false;
+    }
 
+    bool query_method_list(std::string *out = nullptr) {
+        nlohmann::json query_struct;
+        query_struct["debug_type"] = "list_method";
+        std::string output;
+        if (this->query_debug_info(query_struct.dump(), &output)) {
+            nlohmann::json response_struct;
+            try {
+                response_struct = nlohmann::json::parse(output);
+            } catch (nlohmann::json::exception &e) {
+                LERROR(UBusDebugger) << "Exception in json : " << e.what();
+                return false;
+            }
+            if (response_struct.contains("response") && response_struct.at("response") == "OK" &&
+                response_struct.contains("response_data")) {
+                nlohmann::json method_list;
+                method_list = response_struct.at("response_data");
+                if (out != nullptr) {
+                    *out = method_list.dump();
+                    return true;
+                }
+                if (method_list.is_array()) {
+                    for (auto &method : method_list) {
+                        std::cout << "Method :" << std::endl;
+                        std::cout << "    name          " << method.at("name").get<std::string>() << std::endl;
+                        std::cout << "    request_type  " << method.at("request_type").get<uint32_t>() << std::endl;
+                        std::cout << "    response_type " << method.at("response_type").get<uint32_t>() << std::endl;
+                        std::cout << "    provider      " << method.at("provider").get<std::string>() << std::endl;
+                        std::cout << std::endl;
+                    }
+                }
+                return true;
+            }
         } else {
             LERROR(UBusDebugger) << "Failed to query debug info from master";
             return false;
@@ -133,13 +171,15 @@ class UBusDebugger : public UBusRuntime {
                         if (participant.at("name").get<std::string>() == this->name_) {
                             continue;
                         }
-                        std::cout << "Participant :";
-                        std::cout << "    name           " << participant.at("name").get<std::string>();
-                        std::cout << "    ip             " << participant.at("ip").get<std::string>();
-                        std::cout << "    port           " << participant.at("port").get<uint32_t>();
-                        std::cout << "    listening_ip   " << participant.at("listening_ip").get<std::string>();
-                        std::cout << "    listening_port " << participant.at("listening_port").get<uint32_t>();
-                        std::cout;
+                        std::cout << "Participant :" << std::endl;
+                        std::cout << "    name           " << participant.at("name").get<std::string>() << std::endl;
+                        std::cout << "    ip             " << participant.at("ip").get<std::string>() << std::endl;
+                        std::cout << "    port           " << participant.at("port").get<uint32_t>() << std::endl;
+                        std::cout << "    listening_ip   " << participant.at("listening_ip").get<std::string>()
+                                  << std::endl;
+                        std::cout << "    listening_port " << participant.at("listening_port").get<uint32_t>()
+                                  << std::endl;
+                        std::cout << std::endl;
                     }
                 }
                 return true;
@@ -255,8 +295,8 @@ class UBusDebugger : public UBusRuntime {
                             event_info.publisher = response_json.at("publisher_name").get<std::string>();
                             event_info.callback =
                                 std::make_shared<EventCallbackHolder<StringMsg> >([](const StringMsg &msg) {
-                                    std::cout << msg.data;
-                                    std::cout << "---------";
+                                    std::cout << msg.data << std::endl;
+                                    std::cout << "---------" << std::endl;
                                 });
 
                             // send subscribe message to publisher
@@ -367,6 +407,11 @@ int main(int argc, char **argv) {
             UBusDebugger debugger;
             debugger.init("debugger" + std::to_string(getpid()), master_ip, master_port);
             debugger.query_participant_list();
+        }
+        if (list_method) {
+            UBusDebugger debugger;
+            debugger.init("debugger" + std::to_string(getpid()), master_ip, master_port);
+            debugger.query_method_list();
         }
     }
 
