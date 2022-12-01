@@ -72,3 +72,15 @@ class Float64Msg : public MessageBase {
  public:
     float64_t data;
 };
+
+class StringMsg : public MessageBase {
+ public:
+    static const uint32_t id;
+
+ public:
+    virtual void serialize(std::string *data) const { *data = this->data; }
+    virtual void deserialize(const std::string &data) { this->data = data; }
+
+ public:
+    std::string data;
+};

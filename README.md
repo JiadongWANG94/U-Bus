@@ -37,6 +37,7 @@ Subcommands:
   list                        list event, participant or method
   echo                        echo message of specific event
   dump                        dump event messages
+  request                     request method
 
 # examples:
 
@@ -61,14 +62,6 @@ Participant :
     listening_ip   0.0.0.0
     listening_port 57513
 
-# to list methods
-$ ./ubus_cli list --method
-Method :
-    name          test_method
-    request_type  11
-    response_type 12
-    provider      test_participant_provider
-
 # to subscribe an event and print in stdout
 $ ./ubus_cli echo --event <event topic>
 msg 1
@@ -78,4 +71,16 @@ msg 2
 msg 3
 ---------
 ...
+
+# to list methods
+$ ./ubus_cli list --method
+Method :
+    name          time
+    request_type  1
+    response_type 13
+    provider      test_clock_server
+
+# to request a method (supposing you know the serielized request datatype)
+$ ./ubus_cli request --method time --request_type 1 --response_type 13 --request_body ""
+{"h":22,"m":37,"ms":787,"s":15}
 ```

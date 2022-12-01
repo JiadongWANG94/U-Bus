@@ -33,7 +33,7 @@ int main() {
         return 1;
     }
     runtime.provide_method<NullMsg, TimestampMessage>(
-        "test_method", std::function<void(const NullMsg &, TimestampMessage *)>(get_current_time));
+        "time", std::function<void(const NullMsg &, TimestampMessage *)>(get_current_time));
     while (1) sleep(1000);
     return 0;
 }

@@ -31,7 +31,7 @@ int main() {
         return 1;
     }
     TimestampMessage response;
-    runtime.call_method<NullMsg, TimestampMessage>("test_method", NullMsg(), &response);
+    runtime.call_method<NullMsg, TimestampMessage>("time", NullMsg(), &response);
     print_current_time();
     LINFO(main) << "Remote: Current timestamp is " << response.h << ":" << response.m << ":" << response.s << "."
                 << response.ms;

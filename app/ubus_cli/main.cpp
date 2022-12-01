@@ -21,9 +21,19 @@ int main(int argc, char **argv) {
 
     CLI::App *subcom_echo = app.add_subcommand("echo", "echo message of specific event");
     std::string echo_event = "";
-    subcom_echo->add_option("--event", echo_event, "event to echo");
+    subcom_echo->add_option("--event", echo_event, "event to echo")->required();
 
     CLI::App *subcom_dump = app.add_subcommand("dump", "dump event messages");
+
+    CLI::App *subcom_request = app.add_subcommand("request", "request method");
+    std::string request_method;
+    uint32_t request_type = 0;
+    uint32_t response_type = 0;
+    std::string request_body;
+    subcom_request->add_option("--method", request_method, "name of method")->required();
+    subcom_request->add_option("--request_type", request_type, "type of request data")->required();
+    subcom_request->add_option("--response_type", response_type, "type of response data")->required();
+    subcom_request->add_option("--request_body", request_body, "serialized request content")->required();
 
     try {
         app.parse(argc, argv);
@@ -53,15 +63,20 @@ int main(int argc, char **argv) {
     }
 
     if (subcom_echo->parsed()) {
-        if (echo_event == "") {
-            LERROR(UBusDebugger) << "Please provide event name";
-        }
         UBusDebugger debugger;
         debugger.init("debugger" + std::to_string(getpid()), master_ip, master_port);
         debugger.echo_event(echo_event);
         while (true) {
             sleep(1);
         }
+    }
+
+    if (subcom_request->parsed()) {
+        UBusDebugger debugger;
+        debugger.init("debugger" + std::to_string(getpid()), master_ip, master_port);
+        std::string response_body;
+        debugger.request_method(request_method, request_type, request_body, response_type, &response_body);
+        std::cout << response_body << std::endl;
     }
     return 0;
 }

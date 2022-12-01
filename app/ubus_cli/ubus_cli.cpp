@@ -345,3 +345,20 @@ bool UBusDebugger::echo_event(const std::string &topic) {
     }
     return true;
 }
+
+bool UBusDebugger::request_method(const std::string &method_name,
+                                  uint32_t request_type,
+                                  const std::string &request,
+                                  uint32_t response_type,
+                                  std::string *response) {
+    DebugMsg request_msg, response_msg;
+    request_msg.id = request_type;
+    request_msg.data = request;
+    response_msg.id = response_type;
+    if (this->call_method<DebugMsg, DebugMsg>(method_name, request_msg, &response_msg)) {
+        *response = response_msg.data;
+        return true;
+    } else {
+        return false;
+    }
+}

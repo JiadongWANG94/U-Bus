@@ -466,8 +466,10 @@ bool UBusRuntime::call_method(const std::string &method, const RequestT &request
 
     nlohmann::json json_struct;
     json_struct["method"] = method;
-    json_struct["request_type_id"] = RequestT::id;
-    json_struct["response_type_id"] = ResponseT::id;
+    // json_struct["request_type_id"] = RequestT::id;
+    // json_struct["response_type_id"] = ResponseT::id;
+    json_struct["request_type_id"] = request.id;
+    json_struct["response_type_id"] = response->id;
     json_struct["name"] = name_;
     std::string serialized_string = json_struct.dump();
 
@@ -546,8 +548,10 @@ bool UBusRuntime::call_method(const std::string &method, const RequestT &request
             request.serialize(&request_string);
             nlohmann::json method_req_json;
             method_req_json["method"] = method;
-            method_req_json["request_type_id"] = RequestT::id;
-            method_req_json["response_type_id"] = ResponseT::id;
+            method_req_json["request_type_id"] = request.id;
+            method_req_json["response_type_id"] = response->id;
+            // method_req_json["request_type_id"] = RequestT::id;
+            // method_req_json["response_type_id"] = ResponseT::id;
             method_req_json["name"] = name_;
             method_req_json["request_data"] = request_string;
             std::string serialized_string = method_req_json.dump();
@@ -589,11 +593,12 @@ bool UBusRuntime::call_method(const std::string &method, const RequestT &request
                     nlohmann::json response_json = nlohmann::json::parse(content);
                     if (response_json.contains("response")) {
                         if (response_json["response"] == "OK") {
-                            LINFO(UBusRuntime) << "Method registered to master";
+                            LINFO(UBusRuntime) << "Get response from method provider";
                             if (!response_json.contains("response_data")) {
                                 LERROR(UBusRuntime) << "Invalid frame format";
                                 return false;
                             }
+                            LDEBUG(UBusRuntime) << "Response data : " << std::string(response_json.at("response_data"));
                             response->deserialize(response_json.at("response_data"));
                         } else {
                             LERROR(UBusRuntime) << "Error request method : " << std::string(response_json["response"]);

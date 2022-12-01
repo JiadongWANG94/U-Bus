@@ -11,9 +11,9 @@
 #include "frame.hpp"
 #include "ubus_runtime.hpp"
 
-class StringMsg : public MessageBase {
+class DebugMsg : public MessageBase {
  public:
-    static const uint32_t id = 10000;
+    uint32_t id;
 
  public:
     virtual void serialize(std::string *data) const { *data = this->data; }
@@ -32,6 +32,12 @@ class UBusDebugger : public UBusRuntime {
     bool query_method_list(std::string *out = nullptr);
 
     bool query_participant_list(std::string *out = nullptr);
+
+    bool request_method(const std::string &method_name,
+                        uint32_t request_type,
+                        const std::string &request,
+                        uint32_t response_type,
+                        std::string *response);
 
     bool echo_event(const std::string &topic);
 };
