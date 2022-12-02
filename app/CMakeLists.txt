@@ -1,1 +1,2 @@
 add_subdirectory(ubus_cli)
+add_subdirectory(remote_executer)
