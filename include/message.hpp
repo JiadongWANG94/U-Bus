@@ -27,7 +27,7 @@ class NullMsg : public MessageBase {
 
 class Int32Msg : public MessageBase {
  public:
-    static const uint32_t id = 2;
+    static const uint32_t id;
 
  public:
     virtual void serialize(std::string *data) const { *data = std::to_string(this->data); }
@@ -39,7 +39,7 @@ class Int32Msg : public MessageBase {
 
 class Int64Msg : public MessageBase {
  public:
-    static const uint32_t id = 3;
+    static const uint32_t id;
 
  public:
     virtual void serialize(std::string *data) const { *data = std::to_string(this->data); }
@@ -51,7 +51,7 @@ class Int64Msg : public MessageBase {
 
 class Float32Msg : public MessageBase {
  public:
-    static const uint32_t id = 4;
+    static const uint32_t id;
 
  public:
     virtual void serialize(std::string *data) const { *data = std::to_string(this->data); }
@@ -63,7 +63,7 @@ class Float32Msg : public MessageBase {
 
 class Float64Msg : public MessageBase {
  public:
-    static const uint32_t id = 5;
+    static const uint32_t id;
 
  public:
     virtual void serialize(std::string *data) const { *data = std::to_string(this->data); }
