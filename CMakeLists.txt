@@ -14,6 +14,8 @@ add_subdirectory(nimportequoi)
 file(GLOB_RECURSE src_list ${CMAKE_CURRENT_LIST_DIR}/src/*.cpp)
 
 add_library(ubus STATIC ${src_list})
+set_target_properties(ubus PROPERTIES
+    POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(ubus
     PUBLIC
